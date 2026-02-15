@@ -1,0 +1,4 @@
+# Phase 1 — minimal runtime for health checks
+# RAG stack (LangChain, Qdrant, Hugging Face) will be added in Phase 2
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
