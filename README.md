@@ -8,36 +8,160 @@ Retrieval-Augmented Generation pipeline with Docker-based environment, Qdrant ve
 - **Git**
 - **Python 3.11+** (optional; runtime is fully containerized)
 
-## Quick Start
+---
 
-1. **Clone the repository**:
+## Environment variables
+
+Copy `.env.example` to `.env` and set values as needed. All parameters are documented in [.env.example](.env.example).
+
+| Variable | Required for | Description |
+|----------|--------------|-------------|
+| `HUGGINGFACEHUB_API_TOKEN` | **app** (RAG/agent) | [Hugging Face token](https://huggingface.co/settings/tokens) for embeddings and LLM |
+| `OPENCLAW_GATEWAY_TOKEN` | OpenClaw (optional) | Gateway token from OpenClaw setup |
+| `OPENCLAW_GATEWAY_URL` | **app** (OpenClaw tab) | e.g. `http://openclaw-gateway:18789` when OpenClaw runs in Docker |
+| `OPENCLAW_CONFIG_DIR` | OpenClaw | Default `./.openclaw-config` |
+| `OPENCLAW_WORKSPACE_DIR` | OpenClaw | Default `./.openclaw-workspace` |
+| `OPENCLAW_GATEWAY_PORT` | OpenClaw | Default `18789` |
+
+```bash
+cp .env.example .env
+# Edit .env: at minimum set HUGGINGFACEHUB_API_TOKEN for RAG/chat
+```
+
+---
+
+## Running the services
+
+All services use **healthchecks**. The table below lists how to run each service and how to verify it is healthy.
+
+### Services overview
+
+| Service | Compose file | Port(s) | Health check | Depends on |
+|---------|--------------|---------|--------------|------------|
+| **vectordb** | `docker-compose.yml` | 6333, 6334 | TCP 6333 | — |
+| **app** | `docker-compose.yml` | 8000 | `GET http://localhost:8000/health` | vectordb (healthy) |
+| **frontend** | `docker-compose.yml` | 5173 | `GET http://localhost:5173/` | app (healthy) |
+| **openclaw-gateway** | `docker-compose.openclaw.yml` | 18789, 18790 | `node dist/index.js health --token $OPENCLAW_GATEWAY_TOKEN` | network `voiceflip-net` (app running) |
+| **openclaw-cli** | `docker-compose.openclaw.yml` | — | (one-off for onboard) | — |
+
+### Health checks (verify manually)
+
+| Service | Check |
+|---------|--------|
+| **app** | `curl -f http://localhost:8000/health` → `{"status":"ok"}` |
+| **vectordb** | `curl -f http://localhost:6333/readyz` or open http://localhost:6333/dashboard |
+| **frontend** | Open http://localhost:5173/ in a browser |
+| **openclaw-gateway** | `curl -f http://localhost:18789/` (or use OpenClaw’s health command with token) |
+
+Docker Compose runs healthchecks automatically; `depends_on` with `condition: service_healthy` waits for dependencies before starting.
+
+---
+
+## Quick start (full stack: app + vectordb + frontend)
+
+1. **Clone and set env**
 
    ```bash
    git clone <repo-url>
    cd voiceflip-test
-   ```
-
-2. **Environment variables**  
-   For Phase 1, run as-is. For Phase 2+ (RAG), copy `.env.example` to `.env` and set your [Hugging Face token](https://huggingface.co/settings/tokens):
-
-   ```bash
    cp .env.example .env
-   # Edit .env and set HUGGINGFACEHUB_API_TOKEN
+   # Set HUGGINGFACEHUB_API_TOKEN in .env
    ```
 
-3. **Start services**:
+2. **Start all main services**
 
    ```bash
-   docker compose up --build
+   docker compose up --build -d
    ```
 
-   - **app** — FastAPI at `http://localhost:8000`
-   - **vectordb** — Qdrant at `http://localhost:6333` (API) and `6334` (gRPC)
+3. **Wait for health** (optional; Compose already waits for app/vectordb)
 
-4. **Health checks**:
+   ```bash
+   docker compose ps
+   # All services should show "healthy" (or "running" for frontend once ready)
+   curl -s http://localhost:8000/health
+   curl -s -o /dev/null -w "%{http_code}" http://localhost:5173/
+   ```
 
-   - [http://localhost:8000/health](http://localhost:8000/health)
-   - [http://localhost:6333/readyz](http://localhost:6333/readyz)
+4. **Use the app**
+
+   - **API** — http://localhost:8000  
+   - **OpenAPI docs** — http://localhost:8000/docs  
+   - **Frontend** — http://localhost:5173  
+
+---
+
+## Running only the backend (app + vectordb)
+
+```bash
+cp .env.example .env
+# Set HUGGINGFACEHUB_API_TOKEN
+docker compose up -d app vectordb
+```
+
+- **Health**: `curl http://localhost:8000/health` and `curl http://localhost:6333/readyz`
+- **API**: http://localhost:8000 and http://localhost:8000/docs
+
+---
+
+## Running the frontend (with backend)
+
+The frontend is in the main compose; it starts after **app** is healthy.
+
+```bash
+docker compose up -d
+# Frontend: http://localhost:5173 (healthcheck: curl http://localhost:5173/)
+```
+
+**Frontend locally (dev)** while backend runs in Docker:
+
+```bash
+# Terminal 1
+docker compose up -d app vectordb
+
+# Terminal 2
+cd frontend && npm install && npm run dev
+# Open http://localhost:5173 (Vite may use a different port if 5173 is busy)
+```
+
+---
+
+## Running OpenClaw (optional, Phase 6)
+
+OpenClaw uses a **separate** compose file and the shared network `voiceflip-net` so it can reach the RAG API at `http://app:8000`.
+
+1. **Start the main stack first** (so `voiceflip-net` exists and `app` is reachable)
+
+   ```bash
+   docker compose up -d app vectordb
+   ```
+
+2. **Set OpenClaw env** in `.env`
+
+   - `OPENCLAW_GATEWAY_TOKEN` (generate or use token from OpenClaw setup)
+   - Optional: `OPENCLAW_CONFIG_DIR`, `OPENCLAW_WORKSPACE_DIR` (defaults: `./.openclaw-config`, `./.openclaw-workspace`)
+
+3. **Create config/workspace dirs** (if not present)
+
+   ```bash
+   mkdir -p .openclaw-config .openclaw-workspace
+   ```
+
+4. **Start OpenClaw**
+
+   ```bash
+   docker compose -f docker-compose.openclaw.yml up -d
+   ```
+
+5. **Onboard once** (model, channels, etc.)
+
+   ```bash
+   docker compose -f docker-compose.openclaw.yml run --rm openclaw-cli onboard
+   ```
+
+6. **Health**: OpenClaw gateway healthcheck runs inside the container (`node dist/index.js health --token $OPENCLAW_GATEWAY_TOKEN`). From the host: open http://localhost:18789 or use the dashboard link from the CLI.
+
+Full details: [docs/OPENCLAW.md](docs/OPENCLAW.md).
 
 ---
 
@@ -84,7 +208,7 @@ Use `retrieval_technique`: `"top_k"` or `"mmr"`.
 | POST | `/retrieve` | Retrieve docs with top_k or MMR (for frontend) |
 | POST | `/openclaw/send` | Forward message to OpenClaw main session (optional; Phase 6) |
 
-### Chat (conversational memory)
+### Example: Chat (conversational memory)
 
 ```bash
 curl -X POST http://localhost:8000/chat \
@@ -92,9 +216,9 @@ curl -X POST http://localhost:8000/chat \
   -d '{"message": "What tax credits exist for home buyers?", "session_id": "user-123"}'
 ```
 
-`session_id` is optional; a new UUID is generated if omitted. Use the same `session_id` for multi-turn conversations.
+`session_id` is optional; a new UUID is generated if omitted.
 
-### Add documents
+### Example: Add documents
 
 ```bash
 curl -X POST http://localhost:8000/documents \
@@ -102,7 +226,7 @@ curl -X POST http://localhost:8000/documents \
   -F "files=@document2.html"
 ```
 
-### Retrieve (both techniques)
+### Example: Retrieve (top_k or mmr)
 
 ```bash
 curl -X POST http://localhost:8000/retrieve \
@@ -110,85 +234,17 @@ curl -X POST http://localhost:8000/retrieve \
   -d '{"query": "homebuyer tax credits", "technique": "top_k"}'
 ```
 
-Use `technique`: `"top_k"` or `"mmr"`.
-
----
-
-## Phase 5 — Frontend (React)
-
-**React** demo with chat, document upload, and retrieval.
-
-### Run with Docker
-
-```bash
-docker compose up --build
-```
-
-- **API** — http://localhost:8000
-- **Frontend** — http://localhost:5173
-- **OpenAPI docs** — http://localhost:8000/docs
-
-### Run frontend locally (dev)
-
-```bash
-# Terminal 1: backend
-docker compose up app vectordb
-
-# Terminal 2: frontend
-cd frontend && npm install && npm run dev
-```
-
-Open http://localhost:5173.
-
-### Features
-
-| Tab | Description |
-|-----|-------------|
-| **Chat** | Conversation with the LangGraph agent (RAG, relevance, web search fallback). Session-based memory. |
-| **Upload Documents** | Add DOCX/HTML files to the RAG vector store. Shows ingested count and any errors. |
-| **Retrieval** | Query the vector store with **top_k** or **MMR**. Results show document content and metadata. |
-| **OpenClaw** | Link to OpenClaw WebChat and “Send to OpenClaw” (forwards via backend when configured). See Phase 6. |
-
-The frontend uses CORS to call the FastAPI backend. Error handling shows API failures in a dismissible banner.
-
----
-
-## Phase 6 — OpenClaw Integration (Bonus)
-
-**OpenClaw** is an open-source personal AI assistant. This repo integrates it with the RAG system.
-
-- **Docker**: Optional stack in `docker-compose.openclaw.yml` (uses image `alpine/openclaw:main`, shared network `voiceflip-net`).
-- **RAG skill**: `openclaw-skill-rag/` — skill that runs a script calling the RAG API so OpenClaw can answer from ingested documents.
-- **Flow**: User asks in OpenClaw (e.g. “Use the RAG skill to answer: What tax credits exist?”) → agent invokes skill → script calls `POST /query` → answer shown in OpenClaw.
-- **Frontend**: “OpenClaw” tab with WebChat link and “Send to OpenClaw” (backend forwards to OpenClaw when `OPENCLAW_GATEWAY_URL` and `OPENCLAW_GATEWAY_TOKEN` are set).
-
-Full setup, architecture, and evidence: **[docs/OPENCLAW.md](docs/OPENCLAW.md)**.
-
-Quick start (after main stack is up):
-
-```bash
-# Create config/workspace dirs and set OPENCLAW_GATEWAY_TOKEN in .env
-mkdir -p .openclaw-config .openclaw-workspace
-docker compose -f docker-compose.openclaw.yml up -d
-# Onboard once: docker compose -f docker-compose.openclaw.yml run --rm openclaw-cli onboard
-```
-
 ---
 
 ## Phase 4 — RAG System Evaluation
 
-**RAGAS** (open-source) for systematic RAG evaluation. See [docs/EVALUATION.md](docs/EVALUATION.md) for tool choice justification and limitations.
-
-### Metrics
-
-Faithfulness, Answer Relevancy, Context Precision, Context Recall (if ground truth in dataset), Latency (custom).
+**RAGAS** (open-source) for systematic RAG evaluation. See [docs/EVALUATION.md](docs/EVALUATION.md).
 
 ### Run evaluation
 
 Requires `question_list.docx` with ≥15 questions (one per paragraph). Optional Q/A pairs with "Q:" / "A:" for context recall.
 
 ```bash
-# After ingest
 docker compose run --rm \
   -v ./question_list.docx:/app/question_list.docx \
   -v ./eval_output:/app/eval_output \
@@ -200,104 +256,71 @@ Report at `./eval_output/eval_report.json`.
 
 ---
 
-### Agent flow
+## Phase 5 — Frontend (React)
 
-1. **Query routing** — Classify as RAG, web search, or general chat
-2. **RAG node** — Retrieve and generate answer with citations
-3. **Relevance node** — Evaluate if retrieved context is relevant
-4. **Hallucination node** — Detect potential hallucination
-5. **Web search fallback** — DuckDuckGo when RAG insufficient or relevance low
+**React** demo: Chat, Upload Documents, Retrieval, OpenClaw tab. See [Running the frontend](#running-the-frontend-with-backend) for how to run it.
+
+| Tab | Description |
+|-----|-------------|
+| **Chat** | LangGraph agent (RAG, relevance, web search). Session-based memory. |
+| **Upload Documents** | Add DOCX/HTML to the RAG vector store. |
+| **Retrieval** | Query vector store with **top_k** or **MMR**. |
+| **OpenClaw** | Link to OpenClaw WebChat and “Send to OpenClaw” (when configured). |
 
 ---
 
-## Project Layout
+## Phase 6 — OpenClaw Integration (Bonus)
+
+See [Running OpenClaw](#running-openclaw-optional-phase-6) and [docs/OPENCLAW.md](docs/OPENCLAW.md) for setup, RAG skill, and flow.
+
+---
+
+## Project layout
 
 ```
 .
-├── openclaw-skill-rag/   # Phase 6 — OpenClaw RAG skill
-│   ├── SKILL.md          # Skill manifest + instructions
-│   └── query-rag.sh      # Script that calls RAG API
-├── docker-compose.openclaw.yml  # Phase 6 — OpenClaw (optional)
-├── docs/OPENCLAW.md      # Phase 6 — integration doc
-├── frontend/             # Phase 5 — React UI
-│   ├── src/
-│   │   ├── App.tsx       # Chat, Upload, Retrieval, OpenClaw tabs
-│   │   ├── api.ts        # API client (+ openclawSend)
-│   │   └── main.tsx
-│   ├── Dockerfile
-│   └── package.json
 ├── app/
-│   ├── agent/           # LangGraph agent
-│   │   ├── state.py     # TypedDict state
-│   │   ├── graph.py     # StateGraph, nodes, edges
-│   │   ├── nodes.py     # Router, RAG, relevance, hallucination, web search
-│   │   ├── tools.py     # Custom chatbot tools (RAG search)
-│   │   └── memory.py    # Conversational memory
-│   ├── constants.py     # Magic strings, supported formats
-│   ├── config.py        # Settings from .env
-│   ├── services.py      # Agent invocation, document ingestion, retrieval
-│   ├── logging_config.py # Structured logging
-│   ├── prompts.py       # RAG prompt templates
-│   ├── metadata.py      # Excel chunking strategy parsing
-│   ├── cleaning.py      # Text normalization
-│   ├── loaders.py       # DOCX, HTML loaders
-│   ├── chunking.py      # Overlap + row-based chunking
-│   ├── embeddings.py    # HuggingFace embeddings
-│   ├── vectorstore.py   # Qdrant
-│   ├── retrieval.py     # Top-k + MMR, dedupe
-│   ├── llm.py           # HuggingFace LLM
-│   ├── rag.py           # RAG pipeline
-│   ├── ingest.py        # CLI ingest
-│   ├── main.py          # FastAPI: /health, /query, /chat, /documents, /retrieve
-│   └── eval/            # Phase 4 — RAG evaluation (RAGAS)
-│       ├── dataset.py   # Load questions from question_list.docx
-│       └── run_eval.py  # Executable evaluation script
-├── docs/EVALUATION.md   # Tool choice, limitations, improvement
-├── tests/               # Unit tests (run in container)
-├── docker-compose.yml
-├── Dockerfile
-├── .env.example         # All parameters documented
-├── pytest.ini
+│   ├── api/                 # API layer (modular)
+│   │   ├── routers/         # health, rag, chat, documents, retrieval, openclaw
+│   │   ├── schemas.py       # Pydantic request/response models
+│   │   └── __init__.py
+│   ├── agent/               # LangGraph agent
+│   ├── config.py            # Settings from .env
+│   ├── constants.py
+│   ├── main.py              # FastAPI app: CORS + router
+│   ├── openclaw_client.py   # OpenClaw Tools Invoke client
+│   ├── services.py          # Agent, ingestion, retrieval
+│   ├── rag.py, retrieval.py, vectorstore.py, loaders.py, ...
+│   └── eval/
+├── frontend/                # React (Vite) UI
+├── openclaw-skill-rag/      # OpenClaw RAG skill
+├── docker-compose.yml       # app, vectordb, frontend (all with healthchecks)
+├── docker-compose.openclaw.yml
+├── docs/OPENCLAW.md, EVALUATION.md
+├── .env.example
 └── requirements.txt
 ```
 
 ---
 
-## Code Conventions
+## Code conventions
 
 - **Comments and docstrings**: English only.
-- **Modularity**: Single responsibility; no scripts > ~80 lines; extract helpers into separate modules.
-- **Constants**: Centralized in `app/constants.py`; avoid magic strings.
-- **Config**: All tunable parameters via `.env`; see `.env.example`.
-- **Type hints**: Use for function signatures and public APIs.
-- **Imports**: Group stdlib, third-party, local; alphabetical within groups.
+- **Modularity**: Single responsibility; routers and schemas in `app/api/`; business logic in services/rag/retrieval.
+- **Constants**: `app/constants.py`.
+- **Config**: `.env` / `.env.example`.
+- **Type hints**: For function signatures and public APIs.
 
 ## Architecture
 
-- **Loaders** (`loaders.py`): DOCX, HTML → (text, metadata) blocks.
-- **Cleaning** (`cleaning.py`): Conservative text normalization (NFKC, whitespace collapse).
-- **Chunking** (`chunking.py`): Overlap or row-based; strategy per doc from Excel (`metadata.py`).
-- **Vector Store** (`vectorstore.py`): Qdrant with cosine similarity.
-- **Retrieval** (`retrieval.py`): Top-k or MMR; dedupe by (doc_id, page/para).
-- **RAG** (`rag.py`): Retrieval → LLM (answer-with-citations-only prompt) → response.
-- **Prompts** (`prompts.py`): Structured templates; edge case: "Not enough context" when scores below threshold.
-- **Agent** (`agent/`): LangGraph StateGraph with query routing, RAG, relevance, hallucination, web search. Conversational memory via MemorySaver (in-memory). Structured logging via structlog.
+- **API**: `app/main.py` mounts `app.api` routers; each router in `app/api/routers/` handles one domain (health, rag, chat, documents, retrieval, openclaw).
+- **RAG**: Loaders → cleaning → chunking → vectorstore → retrieval (top_k / MMR) → LLM → response. See `app/rag.py`, `app/retrieval.py`, `app/vectorstore.py`.
+- **Agent**: LangGraph StateGraph (routing, RAG, relevance, hallucination, web search). Conversational memory via MemorySaver.
 
-## Services
+## Git and commits
 
-| Service   | Image / Build   | Ports      | Description          |
-|-----------|-----------------|------------|----------------------|
-| **app**   | Build from repo | 8000       | FastAPI + RAG        |
-| **vectordb** | `qdrant/qdrant` | 6333, 6334 | Qdrant vector DB     |
-
-- **Persistent storage**: Qdrant data in `qdrant_storage` volume.
-- **Health checks**: Both services use health checks; app waits for vectordb to be healthy.
-
-## Git and Commits
-
-- **Conventional Commits**: `feat:`, `fix:`, `docs:`, `chore:` prefixes.
-- **Atomic commits**: One logical change per commit.
-- **Descriptive messages**: Clear, concise subject lines.
+- **Conventional Commits**: `feat:`, `fix:`, `docs:`, `chore:`.
+- **Atomic commits**, descriptive messages.
 
 ## License
 

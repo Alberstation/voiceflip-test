@@ -25,6 +25,12 @@ services:
       - voiceflip-net
     init: true
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node dist/index.js health --token \"$$OPENCLAW_GATEWAY_TOKEN\" || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     command:
       - node
       - dist/index.js
