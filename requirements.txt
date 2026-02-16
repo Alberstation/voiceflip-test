@@ -27,5 +27,9 @@ duckduckgo-search>=7.0.0
 # Structured logging
 structlog>=24.0.0
 
+# Phase 4 — RAG evaluation (RAGAS)
+ragas>=0.2.0
+datasets>=2.18.0
+
 # Tests (run inside container)
 pytest>=8.0.0

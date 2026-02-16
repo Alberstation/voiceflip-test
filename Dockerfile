@@ -33,7 +33,7 @@ USER appuser
 COPY --chown=appuser:appuser app/ ./app/
 COPY --chown=appuser:appuser tests/ ./tests/
 COPY --chown=appuser:appuser pytest.ini ./
-# docs/ and Real_Estate_RAG_Documents.xlsx are mounted at runtime for ingest
+# question_list.docx, docs/, Real_Estate_RAG_Documents.xlsx mounted at runtime
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app

@@ -111,6 +111,33 @@ curl -X POST http://localhost:8000/retrieve \
 
 Use `technique`: `"top_k"` or `"mmr"`.
 
+---
+
+## Phase 4 — RAG System Evaluation
+
+**RAGAS** (open-source) for systematic RAG evaluation. See [docs/EVALUATION.md](docs/EVALUATION.md) for tool choice justification and limitations.
+
+### Metrics
+
+Faithfulness, Answer Relevancy, Context Precision, Context Recall (if ground truth in dataset), Latency (custom).
+
+### Run evaluation
+
+Requires `question_list.docx` with ≥15 questions (one per paragraph). Optional Q/A pairs with "Q:" / "A:" for context recall.
+
+```bash
+# After ingest
+docker compose run --rm \
+  -v ./question_list.docx:/app/question_list.docx \
+  -v ./eval_output:/app/eval_output \
+  -e EVAL_REPORT_PATH=/app/eval_output/eval_report.json \
+  app python -m app.eval.run_eval
+```
+
+Report at `./eval_output/eval_report.json`.
+
+---
+
 ### Agent flow
 
 1. **Query routing** — Classify as RAG, web search, or general chat
@@ -147,7 +174,11 @@ Use `technique`: `"top_k"` or `"mmr"`.
 │   ├── llm.py           # HuggingFace LLM
 │   ├── rag.py           # RAG pipeline
 │   ├── ingest.py        # CLI ingest
-│   └── main.py          # FastAPI: /health, /query, /chat, /documents, /retrieve
+│   ├── main.py          # FastAPI: /health, /query, /chat, /documents, /retrieve
+│   └── eval/            # Phase 4 — RAG evaluation (RAGAS)
+│       ├── dataset.py   # Load questions from question_list.docx
+│       └── run_eval.py  # Executable evaluation script
+├── docs/EVALUATION.md   # Tool choice, limitations, improvement
 ├── tests/               # Unit tests (run in container)
 ├── docker-compose.yml
 ├── Dockerfile
