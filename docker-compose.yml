@@ -10,6 +10,9 @@ services:
       - QDRANT_PORT=6333
       # Phase 2: from .env (Compose loads project .env for substitution)
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN:-}
+      # Phase 6: optional OpenClaw proxy (frontend "Send to OpenClaw")
+      - OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL:-}
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
     depends_on:
       vectordb:
         condition: service_healthy
@@ -45,6 +48,10 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+networks:
+  default:
+    name: voiceflip-net
 
 volumes:
   qdrant_storage:

@@ -100,3 +100,14 @@ export async function health(): Promise<{ status: string }> {
   const res = await fetch(`${API_BASE}/health`);
   return handleResponse<{ status: string }>(res);
 }
+
+export type OpenClawSendResponse = { ok: boolean; result?: unknown; error?: string };
+
+export async function openclawSend(message: string): Promise<OpenClawSendResponse> {
+  const res = await fetch(`${API_BASE}/openclaw/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+  return handleResponse<OpenClawSendResponse>(res);
+}

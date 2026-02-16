@@ -1,9 +1,11 @@
 import { useState, useCallback } from "react";
-import { chat, retrieve, uploadDocuments } from "./api";
+import { chat, retrieve, uploadDocuments, openclawSend } from "./api";
 import type { ChatResponse, RetrieveResponse, DocumentsResponse } from "./api";
 import "./App.css";
 
-type TabId = "chat" | "upload" | "retrieve";
+const OPENCLAW_WEBCHAT_URL = import.meta.env.VITE_OPENCLAW_WEBCHAT_URL || "http://localhost:18789";
+
+type TabId = "chat" | "upload" | "retrieve" | "openclaw";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -23,6 +25,10 @@ function App() {
   const [retrieveQuery, setRetrieveQuery] = useState("");
   const [retrieveTechnique, setRetrieveTechnique] = useState<"top_k" | "mmr">("top_k");
   const [retrieveResult, setRetrieveResult] = useState<RetrieveResponse | null>(null);
+
+  // OpenClaw state
+  const [openclawMessage, setOpenclawMessage] = useState("");
+  const [openclawSent, setOpenclawSent] = useState<string | null>(null);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -95,6 +101,24 @@ function App() {
     setFiles((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const handleOpenClawSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const msg = openclawMessage.trim();
+    if (!msg || loading) return;
+    setError(null);
+    setOpenclawSent(null);
+    setLoading(true);
+    try {
+      await openclawSend(msg);
+      setOpenclawSent(msg);
+      setOpenclawMessage("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Send to OpenClaw failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="app">
       <header className="header">
@@ -127,6 +151,15 @@ function App() {
             }}
           >
             Retrieval
+          </button>
+          <button
+            className={activeTab === "openclaw" ? "active" : ""}
+            onClick={() => {
+              setActiveTab("openclaw");
+              clearError();
+            }}
+          >
+            OpenClaw
           </button>
         </nav>
       </header>
@@ -284,6 +317,37 @@ function App() {
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === "openclaw" && (
+          <section className="panel openclaw-panel">
+            <p className="hint">
+              Send a message to OpenClaw’s main session. Use the RAG skill there, e.g. &quot;Use the RAG skill to answer: What tax credits exist for home buyers?&quot;
+            </p>
+            <div className="openclaw-link">
+              <a href={OPENCLAW_WEBCHAT_URL} target="_blank" rel="noopener noreferrer">
+                Open OpenClaw WebChat →
+              </a>
+            </div>
+            <form onSubmit={handleOpenClawSend} className="form">
+              <input
+                type="text"
+                value={openclawMessage}
+                onChange={(e) => setOpenclawMessage(e.target.value)}
+                placeholder="Message to send to OpenClaw…"
+                disabled={loading}
+                autoComplete="off"
+              />
+              <button type="submit" disabled={loading || !openclawMessage.trim()}>
+                {loading ? "Sending…" : "Send to OpenClaw"}
+              </button>
+            </form>
+            {openclawSent && (
+              <div className="result-box success">
+                Message sent: &quot;{openclawSent}&quot; — check OpenClaw WebChat or your connected channel for the reply.
               </div>
             )}
           </section>

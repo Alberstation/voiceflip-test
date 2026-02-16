@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     # Optional
     log_level: str = "INFO"
 
+    # OpenClaw (Phase 6) — optional; for frontend "Send to OpenClaw"
+    openclaw_gateway_url: str = ""
+    openclaw_gateway_token: str = ""
+
     def docs_path(self) -> Path:
         return Path(self.docs_dir)
 

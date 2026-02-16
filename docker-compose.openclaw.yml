@@ -1,0 +1,59 @@
+# OpenClaw (Phase 6) — optional. Run after the main stack so OpenClaw can reach the RAG API.
+# Usage:
+#   1. Start RAG stack:  docker compose up -d app vectordb
+#   2. Create network:  docker network create voiceflip-net  (if not already created by main compose)
+#   3. Start OpenClaw:  docker compose -f docker-compose.openclaw.yml up -d
+#   4. Onboard once:    docker compose -f docker-compose.openclaw.yml run --rm openclaw-cli onboard
+# See docs/OPENCLAW.md for full instructions.
+
+services:
+  openclaw-gateway:
+    image: alpine/openclaw:main
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+      RAG_API_URL: http://app:8000
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR:-./.openclaw-config}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./.openclaw-workspace}:/home/node/.openclaw/workspace
+      - ./openclaw-skill-rag:/home/node/.openclaw/workspace/skills/rag-query:ro
+    ports:
+      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+      - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
+    networks:
+      - voiceflip-net
+    init: true
+    restart: unless-stopped
+    command:
+      - node
+      - dist/index.js
+      - gateway
+      - --bind
+      - "lan"
+      - --port
+      - "18789"
+
+  openclaw-cli:
+    image: alpine/openclaw:main
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+      BROWSER: echo
+      RAG_API_URL: http://app:8000
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR:-./.openclaw-config}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./.openclaw-workspace}:/home/node/.openclaw/workspace
+      - ./openclaw-skill-rag:/home/node/.openclaw/workspace/skills/rag-query:ro
+    networks:
+      - voiceflip-net
+    stdin_open: true
+    tty: true
+    init: true
+    entrypoint: ["node", "dist/index.js"]
+
+networks:
+  voiceflip-net:
+    external: true
+    name: voiceflip-net

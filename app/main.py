@@ -128,3 +128,61 @@ def retrieve_endpoint(request: RetrieveRequest):
     except Exception as e:
         logger.error("retrieve_failed", error=str(e))
         raise HTTPException(500, str(e))
+
+
+# --- OpenClaw (Phase 6) ---
+
+class OpenClawSendRequest(BaseModel):
+    message: str
+
+
+class OpenClawSendResponse(BaseModel):
+    ok: bool
+    result: dict | None = None
+    error: str | None = None
+
+
+@app.post("/openclaw/send", response_model=OpenClawSendResponse, tags=["openclaw"])
+def openclaw_send(request: OpenClawSendRequest):
+    """Forward a message to OpenClaw's main session (Tools Invoke API). Requires OPENCLAW_GATEWAY_URL and OPENCLAW_GATEWAY_TOKEN."""
+    import urllib.request
+    import json as _json
+
+    url = settings.openclaw_gateway_url
+    token = settings.openclaw_gateway_token
+    if not url or not token:
+        raise HTTPException(
+            503,
+            "OpenClaw integration not configured: set OPENCLAW_GATEWAY_URL and OPENCLAW_GATEWAY_TOKEN",
+        )
+    invoke_url = url.rstrip("/") + "/tools/invoke"
+    payload = {
+        "tool": "sessions_send",
+        "sessionKey": "main",
+        "args": {"message": request.message},
+    }
+    try:
+        req = urllib.request.Request(
+            invoke_url,
+            data=_json.dumps(payload).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = _json.load(resp)
+            return OpenClawSendResponse(ok=data.get("ok", True), result=data.get("result"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode() if e.fp else ""
+        logger.error("openclaw_send_http_error", status=e.code, body=body[:500])
+        try:
+            err = _json.loads(body)
+            msg = err.get("error", {}).get("message", body) if isinstance(err.get("error"), dict) else body
+        except Exception:
+            msg = body or str(e)
+        raise HTTPException(e.code, msg)
+    except Exception as e:
+        logger.error("openclaw_send_failed", error=str(e))
+        raise HTTPException(502, str(e))

@@ -82,6 +82,7 @@ Use `retrieval_technique`: `"top_k"` or `"mmr"`.
 | POST | `/chat` | Chat with agent (conversational memory) |
 | POST | `/documents` | Add DOCX/HTML documents to RAG |
 | POST | `/retrieve` | Retrieve docs with top_k or MMR (for frontend) |
+| POST | `/openclaw/send` | Forward message to OpenClaw main session (optional; Phase 6) |
 
 ### Chat (conversational memory)
 
@@ -146,8 +147,31 @@ Open http://localhost:5173.
 | **Chat** | Conversation with the LangGraph agent (RAG, relevance, web search fallback). Session-based memory. |
 | **Upload Documents** | Add DOCX/HTML files to the RAG vector store. Shows ingested count and any errors. |
 | **Retrieval** | Query the vector store with **top_k** or **MMR**. Results show document content and metadata. |
+| **OpenClaw** | Link to OpenClaw WebChat and “Send to OpenClaw” (forwards via backend when configured). See Phase 6. |
 
 The frontend uses CORS to call the FastAPI backend. Error handling shows API failures in a dismissible banner.
+
+---
+
+## Phase 6 — OpenClaw Integration (Bonus)
+
+**OpenClaw** is an open-source personal AI assistant. This repo integrates it with the RAG system.
+
+- **Docker**: Optional stack in `docker-compose.openclaw.yml` (uses image `alpine/openclaw:main`, shared network `voiceflip-net`).
+- **RAG skill**: `openclaw-skill-rag/` — skill that runs a script calling the RAG API so OpenClaw can answer from ingested documents.
+- **Flow**: User asks in OpenClaw (e.g. “Use the RAG skill to answer: What tax credits exist?”) → agent invokes skill → script calls `POST /query` → answer shown in OpenClaw.
+- **Frontend**: “OpenClaw” tab with WebChat link and “Send to OpenClaw” (backend forwards to OpenClaw when `OPENCLAW_GATEWAY_URL` and `OPENCLAW_GATEWAY_TOKEN` are set).
+
+Full setup, architecture, and evidence: **[docs/OPENCLAW.md](docs/OPENCLAW.md)**.
+
+Quick start (after main stack is up):
+
+```bash
+# Create config/workspace dirs and set OPENCLAW_GATEWAY_TOKEN in .env
+mkdir -p .openclaw-config .openclaw-workspace
+docker compose -f docker-compose.openclaw.yml up -d
+# Onboard once: docker compose -f docker-compose.openclaw.yml run --rm openclaw-cli onboard
+```
 
 ---
 
@@ -190,10 +214,15 @@ Report at `./eval_output/eval_report.json`.
 
 ```
 .
+├── openclaw-skill-rag/   # Phase 6 — OpenClaw RAG skill
+│   ├── SKILL.md          # Skill manifest + instructions
+│   └── query-rag.sh      # Script that calls RAG API
+├── docker-compose.openclaw.yml  # Phase 6 — OpenClaw (optional)
+├── docs/OPENCLAW.md      # Phase 6 — integration doc
 ├── frontend/             # Phase 5 — React UI
 │   ├── src/
-│   │   ├── App.tsx       # Chat, Upload, Retrieval tabs
-│   │   ├── api.ts        # API client (chat, query, retrieve, documents)
+│   │   ├── App.tsx       # Chat, Upload, Retrieval, OpenClaw tabs
+│   │   ├── api.ts        # API client (+ openclawSend)
 │   │   └── main.tsx
 │   ├── Dockerfile
 │   └── package.json

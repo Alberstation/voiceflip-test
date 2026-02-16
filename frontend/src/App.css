@@ -265,6 +265,21 @@
   padding-left: 1.25rem;
 }
 
+.result-box.success {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.openclaw-panel .openclaw-link {
+  margin-bottom: 1rem;
+}
+
+.openclaw-panel .openclaw-link a {
+  color: #4f46e5;
+  font-weight: 500;
+}
+
 .retrieve-results .doc-list {
   list-style: none;
   padding: 0;
