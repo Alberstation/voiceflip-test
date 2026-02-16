@@ -8,7 +8,8 @@ services:
     environment:
       - QDRANT_HOST=vectordb
       - QDRANT_PORT=6333
-    # Optional: copy .env.example to .env for HUGGINGFACEHUB_API_TOKEN (Phase 2+)
+      # Phase 2: from .env (Compose loads project .env for substitution)
+      - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN:-}
     depends_on:
       vectordb:
         condition: service_healthy

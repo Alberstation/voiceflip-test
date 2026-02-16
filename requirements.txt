@@ -1,4 +1,23 @@
-# Phase 1 — minimal runtime for health checks
-# RAG stack (LangChain, Qdrant, Hugging Face) will be added in Phase 2
+# Phase 1 — API
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
+
+# Phase 2 — RAG
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-huggingface>=0.1.0
+langchain-qdrant>=0.2.0
+qdrant-client>=1.12.0
+
+# Document loaders (DOCX, HTML)
+python-docx>=1.1.0
+beautifulsoup4>=4.12.0
+
+# Excel metadata (chunking config per document)
+openpyxl>=3.1.0
+
+# Config from .env
+pydantic-settings>=2.0.0
+
+# Tests (run inside container)
+pytest>=8.0.0
