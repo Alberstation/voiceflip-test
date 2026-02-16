@@ -69,13 +69,73 @@ Use `retrieval_technique`: `"top_k"` or `"mmr"`.
 
 ---
 
+## Phase 3 — LangGraph Agent
+
+**LangGraph agent** with query routing, RAG, relevance evaluation, hallucination detection, and web search fallback.
+
+### API Endpoints (FastAPI)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| POST | `/query` | RAG query (top_k or MMR) |
+| POST | `/chat` | Chat with agent (conversational memory) |
+| POST | `/documents` | Add DOCX/HTML documents to RAG |
+| POST | `/retrieve` | Retrieve docs with top_k or MMR (for frontend) |
+
+### Chat (conversational memory)
+
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What tax credits exist for home buyers?", "session_id": "user-123"}'
+```
+
+`session_id` is optional; a new UUID is generated if omitted. Use the same `session_id` for multi-turn conversations.
+
+### Add documents
+
+```bash
+curl -X POST http://localhost:8000/documents \
+  -F "files=@document1.docx" \
+  -F "files=@document2.html"
+```
+
+### Retrieve (both techniques)
+
+```bash
+curl -X POST http://localhost:8000/retrieve \
+  -H "Content-Type: application/json" \
+  -d '{"query": "homebuyer tax credits", "technique": "top_k"}'
+```
+
+Use `technique`: `"top_k"` or `"mmr"`.
+
+### Agent flow
+
+1. **Query routing** — Classify as RAG, web search, or general chat
+2. **RAG node** — Retrieve and generate answer with citations
+3. **Relevance node** — Evaluate if retrieved context is relevant
+4. **Hallucination node** — Detect potential hallucination
+5. **Web search fallback** — DuckDuckGo when RAG insufficient or relevance low
+
+---
+
 ## Project Layout
 
 ```
 .
 ├── app/
+│   ├── agent/           # LangGraph agent
+│   │   ├── state.py     # TypedDict state
+│   │   ├── graph.py     # StateGraph, nodes, edges
+│   │   ├── nodes.py     # Router, RAG, relevance, hallucination, web search
+│   │   ├── tools.py     # Custom chatbot tools (RAG search)
+│   │   └── memory.py    # Conversational memory
 │   ├── constants.py     # Magic strings, supported formats
 │   ├── config.py        # Settings from .env
+│   ├── services.py      # Agent invocation, document ingestion, retrieval
+│   ├── logging_config.py # Structured logging
 │   ├── prompts.py       # RAG prompt templates
 │   ├── metadata.py      # Excel chunking strategy parsing
 │   ├── cleaning.py      # Text normalization
@@ -87,7 +147,7 @@ Use `retrieval_technique`: `"top_k"` or `"mmr"`.
 │   ├── llm.py           # HuggingFace LLM
 │   ├── rag.py           # RAG pipeline
 │   ├── ingest.py        # CLI ingest
-│   └── main.py          # FastAPI: /health, /query
+│   └── main.py          # FastAPI: /health, /query, /chat, /documents, /retrieve
 ├── tests/               # Unit tests (run in container)
 ├── docker-compose.yml
 ├── Dockerfile
@@ -116,6 +176,7 @@ Use `retrieval_technique`: `"top_k"` or `"mmr"`.
 - **Retrieval** (`retrieval.py`): Top-k or MMR; dedupe by (doc_id, page/para).
 - **RAG** (`rag.py`): Retrieval → LLM (answer-with-citations-only prompt) → response.
 - **Prompts** (`prompts.py`): Structured templates; edge case: "Not enough context" when scores below threshold.
+- **Agent** (`agent/`): LangGraph StateGraph with query routing, RAG, relevance, hallucination, web search. Conversational memory via MemorySaver (in-memory). Structured logging via structlog.
 
 ## Services
 
