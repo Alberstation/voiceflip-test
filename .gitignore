@@ -58,6 +58,11 @@ coverage.xml
 .DS_Store
 Thumbs.db
 
+# Node / frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
 # Project-specific
 qdrant_storage/
 *.log

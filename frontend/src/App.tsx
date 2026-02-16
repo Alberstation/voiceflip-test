@@ -1,0 +1,302 @@
+import { useState, useCallback } from "react";
+import { chat, retrieve, uploadDocuments } from "./api";
+import type { ChatResponse, RetrieveResponse, DocumentsResponse } from "./api";
+import "./App.css";
+
+type TabId = "chat" | "upload" | "retrieve";
+
+type Message = { role: "user" | "assistant"; content: string };
+
+function App() {
+  const [activeTab, setActiveTab] = useState<TabId>("chat");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Upload state
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploadResult, setUploadResult] = useState<DocumentsResponse | null>(null);
+
+  // Retrieve state
+  const [retrieveQuery, setRetrieveQuery] = useState("");
+  const [retrieveTechnique, setRetrieveTechnique] = useState<"top_k" | "mmr">("top_k");
+  const [retrieveResult, setRetrieveResult] = useState<RetrieveResponse | null>(null);
+
+  const clearError = useCallback(() => setError(null), []);
+
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const msg = input.trim();
+    if (!msg || loading) return;
+    setInput("");
+    setError(null);
+    setMessages((m) => [...m, { role: "user", content: msg }]);
+    setLoading(true);
+    try {
+      const res: ChatResponse = await chat(msg, sessionId ?? undefined);
+      setSessionId(res.session_id);
+      setMessages((m) => [...m, { role: "assistant", content: res.answer }]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Chat failed");
+      setMessages((m) => m.slice(0, -1)); // remove user message on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRetrieveSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = retrieveQuery.trim();
+    if (!q || loading) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await retrieve(q, retrieveTechnique);
+      setRetrieveResult(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Retrieval failed");
+      setRetrieveResult(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (files.length === 0 || loading) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await uploadDocuments(files);
+      setUploadResult(res);
+      setFiles([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files ?? []);
+    const valid = selected.filter((f) =>
+      [".docx", ".html", ".htm"].some((ext) =>
+        f.name.toLowerCase().endsWith(ext)
+      )
+    );
+    setFiles((prev) => [...prev, ...valid]);
+    setUploadResult(null);
+    e.target.value = "";
+  };
+
+  const removeFile = (idx: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  return (
+    <div className="app">
+      <header className="header">
+        <h1>RAG AI Engineer</h1>
+        <p className="subtitle">VoiceFlip — Chat, Upload Documents, Retrieve</p>
+        <nav className="tabs">
+          <button
+            className={activeTab === "chat" ? "active" : ""}
+            onClick={() => {
+              setActiveTab("chat");
+              clearError();
+            }}
+          >
+            Chat
+          </button>
+          <button
+            className={activeTab === "upload" ? "active" : ""}
+            onClick={() => {
+              setActiveTab("upload");
+              clearError();
+            }}
+          >
+            Upload Documents
+          </button>
+          <button
+            className={activeTab === "retrieve" ? "active" : ""}
+            onClick={() => {
+              setActiveTab("retrieve");
+              clearError();
+            }}
+          >
+            Retrieval
+          </button>
+        </nav>
+      </header>
+
+      {error && (
+        <div className="banner error" role="alert">
+          {error}
+          <button type="button" onClick={clearError} aria-label="Dismiss">
+            ×
+          </button>
+        </div>
+      )}
+
+      <main className="main">
+        {activeTab === "chat" && (
+          <section className="panel chat-panel">
+            <div className="messages">
+              {messages.length === 0 && (
+                <p className="placeholder">
+                  Start a conversation. The agent uses RAG, relevance checks, and web search fallback.
+                </p>
+              )}
+              {messages.map((m, i) => (
+                <div key={i} className={`message ${m.role}`}>
+                  <strong>{m.role === "user" ? "You" : "Assistant"}</strong>
+                  <div>{m.content}</div>
+                </div>
+              ))}
+              {loading && (
+                <div className="message assistant loading">
+                  <strong>Assistant</strong>
+                  <div>Thinking…</div>
+                </div>
+              )}
+            </div>
+            <form onSubmit={handleChatSubmit} className="form">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type your message…"
+                disabled={loading}
+                autoComplete="off"
+              />
+              <button type="submit" disabled={loading || !input.trim()}>
+                Send
+              </button>
+            </form>
+          </section>
+        )}
+
+        {activeTab === "upload" && (
+          <section className="panel upload-panel">
+            <p className="hint">
+              Supported formats: DOCX, HTML. Files are chunked and added to the vector store.
+            </p>
+            <form onSubmit={handleUploadSubmit} className="form upload-form">
+              <label className="file-label">
+                <input
+                  type="file"
+                  multiple
+                  accept=".docx,.html,.htm"
+                  onChange={handleFileChange}
+                />
+                Choose files
+              </label>
+              {files.length > 0 && (
+                <ul className="file-list">
+                  {files.map((f, i) => (
+                    <li key={i}>
+                      {f.name}{" "}
+                      <button
+                        type="button"
+                        onClick={() => removeFile(i)}
+                        aria-label={`Remove ${f.name}`}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                type="submit"
+                disabled={loading || files.length === 0}
+              >
+                {loading ? "Uploading…" : "Upload"}
+              </button>
+            </form>
+            {uploadResult && (
+              <div className="result-box">
+                <h3>Result</h3>
+                <p>Ingested: {uploadResult.ingested} | Chunks: {uploadResult.chunks}</p>
+                {uploadResult.files.length > 0 && (
+                  <p>Files: {uploadResult.files.join(", ")}</p>
+                )}
+                {uploadResult.errors.length > 0 && (
+                  <ul className="errors">
+                    {uploadResult.errors.map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === "retrieve" && (
+          <section className="panel retrieve-panel">
+            <p className="hint">
+              Search the vector store with top_k or MMR. Results show content and metadata.
+            </p>
+            <form onSubmit={handleRetrieveSubmit} className="form">
+              <input
+                type="text"
+                value={retrieveQuery}
+                onChange={(e) => setRetrieveQuery(e.target.value)}
+                placeholder="Enter search query…"
+                disabled={loading}
+                autoComplete="off"
+              />
+              <select
+                value={retrieveTechnique}
+                onChange={(e) =>
+                  setRetrieveTechnique(e.target.value as "top_k" | "mmr")
+                }
+                disabled={loading}
+              >
+                <option value="top_k">top_k</option>
+                <option value="mmr">MMR</option>
+              </select>
+              <button
+                type="submit"
+                disabled={loading || !retrieveQuery.trim()}
+              >
+                {loading ? "Searching…" : "Retrieve"}
+              </button>
+            </form>
+            {retrieveResult && (
+              <div className="result-box retrieve-results">
+                <h3>
+                  {retrieveResult.count} document(s) for &quot;{retrieveResult.query}&quot; ({retrieveResult.technique})
+                </h3>
+                <ul className="doc-list">
+                  {retrieveResult.documents.map((d, i) => (
+                    <li key={i} className="doc-item">
+                      <details>
+                        <summary>Document {i + 1}</summary>
+                        <pre>{d.content}</pre>
+                        {Object.keys(d.metadata).length > 0 && (
+                          <pre className="meta">{JSON.stringify(d.metadata, null, 2)}</pre>
+                        )}
+                      </details>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
+      </main>
+
+      <footer className="footer">
+        <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer">
+          OpenAPI docs
+        </a>
+      </footer>
+    </div>
+  );
+}
+
+export default App;

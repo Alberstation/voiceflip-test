@@ -113,6 +113,44 @@ Use `technique`: `"top_k"` or `"mmr"`.
 
 ---
 
+## Phase 5 — Frontend (React)
+
+**React** demo with chat, document upload, and retrieval.
+
+### Run with Docker
+
+```bash
+docker compose up --build
+```
+
+- **API** — http://localhost:8000
+- **Frontend** — http://localhost:5173
+- **OpenAPI docs** — http://localhost:8000/docs
+
+### Run frontend locally (dev)
+
+```bash
+# Terminal 1: backend
+docker compose up app vectordb
+
+# Terminal 2: frontend
+cd frontend && npm install && npm run dev
+```
+
+Open http://localhost:5173.
+
+### Features
+
+| Tab | Description |
+|-----|-------------|
+| **Chat** | Conversation with the LangGraph agent (RAG, relevance, web search fallback). Session-based memory. |
+| **Upload Documents** | Add DOCX/HTML files to the RAG vector store. Shows ingested count and any errors. |
+| **Retrieval** | Query the vector store with **top_k** or **MMR**. Results show document content and metadata. |
+
+The frontend uses CORS to call the FastAPI backend. Error handling shows API failures in a dismissible banner.
+
+---
+
 ## Phase 4 — RAG System Evaluation
 
 **RAGAS** (open-source) for systematic RAG evaluation. See [docs/EVALUATION.md](docs/EVALUATION.md) for tool choice justification and limitations.
@@ -152,6 +190,13 @@ Report at `./eval_output/eval_report.json`.
 
 ```
 .
+├── frontend/             # Phase 5 — React UI
+│   ├── src/
+│   │   ├── App.tsx       # Chat, Upload, Retrieval tabs
+│   │   ├── api.ts        # API client (chat, query, retrieve, documents)
+│   │   └── main.tsx
+│   ├── Dockerfile
+│   └── package.json
 ├── app/
 │   ├── agent/           # LangGraph agent
 │   │   ├── state.py     # TypedDict state

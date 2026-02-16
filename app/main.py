@@ -6,6 +6,7 @@ import uuid
 
 import structlog
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.config import settings
@@ -21,6 +22,14 @@ app = FastAPI(
     title="RAG AI Engineer",
     description="VoiceFlip Technical Test — RAG pipeline, LangGraph agent, chatbot",
     version="0.2.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

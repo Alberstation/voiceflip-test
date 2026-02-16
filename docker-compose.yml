@@ -20,6 +20,17 @@ services:
       retries: 3
       start_period: 5s
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - app
+
   vectordb:
     image: qdrant/qdrant:latest
     ports:
