@@ -11,6 +11,13 @@
   margin-bottom: 1rem;
 }
 
+.header-logo {
+  display: block;
+  height: 2.5rem;
+  width: auto;
+  margin-bottom: 0.5rem;
+}
+
 .header h1 {
   margin: 0;
   font-size: 1.75rem;

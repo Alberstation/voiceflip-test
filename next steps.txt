@@ -2,6 +2,13 @@ dashboard para las métricas de evaluación
 
 openclaw para buscar información nueva y crear nuevos documentos para ingestar y crear documentos pdf y .docx
 
-asegurar que el chunking es correcto
+asegurar que el chunking es correcto, como funciona el row base chunking considerar, traducir la tabla a palabras
+
+mejorar documentacion de decisiones en cada fase, incluyendo justificacion de cada decision
 
 pasar documentacion a ingles
+
+At least 1 documented improvement based on results
+
+Documentation for all the endpoints
+

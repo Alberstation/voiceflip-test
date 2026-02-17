@@ -1,5 +1,5 @@
 /**
- * API client for RAG AI Engineer backend.
+ * API client for Voiceflip AI Engineer backend.
  * Uses VITE_API_URL or falls back to http://localhost:8000 when running standalone.
  */
 

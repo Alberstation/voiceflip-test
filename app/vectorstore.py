@@ -15,6 +15,7 @@ def get_qdrant_client() -> QdrantClient:
 
 
 def get_vector_store() -> QdrantVectorStore:
+    ensure_collection()
     client = get_qdrant_client()
     embeddings = get_embeddings()
     return QdrantVectorStore(

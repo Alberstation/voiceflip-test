@@ -12,12 +12,12 @@ from pathlib import Path
 from datasets import Dataset
 
 from app.config import settings
-from app.eval.dataset import load_questions_from_docx
+from app.eval.dataset import load_questions
 from app.rag import query_rag
 from app.retrieval import retrieval_with_scores
 from app.vectorstore import get_vector_store
 
-EVAL_QUESTION_PATH = Path(os.environ.get("EVAL_DATASET_PATH", "/app/question_list.docx"))
+EVAL_QUESTION_PATH = Path(os.environ.get("EVAL_DATASET_PATH", "/app/question_list.pdf"))
 EVAL_REPORT_PATH = Path(os.environ.get("EVAL_REPORT_PATH", "/app/eval_report.json"))
 
 
@@ -50,10 +50,10 @@ def main() -> int:
     path = EVAL_QUESTION_PATH
     if not path.exists():
         print(f"Evaluation dataset not found: {path}", file=sys.stderr)
-        print("Mount question_list.docx: -v ./question_list.docx:/app/question_list.docx", file=sys.stderr)
+        print("Mount question_list.pdf or question_list.docx: -v ./question_list.pdf:/app/question_list.pdf", file=sys.stderr)
         return 1
 
-    questions = load_questions_from_docx(path)
+    questions = load_questions(path)
     if len(questions) < 15:
         print(f"Need >= 15 questions; found {len(questions)} in {path}", file=sys.stderr)
         return 1
@@ -92,11 +92,9 @@ def main() -> int:
         repo_id=settings.llm_model,
         task="text-generation",
         huggingfacehub_api_token=settings.huggingfacehub_api_token or None,
-        model_kwargs={
-            "max_new_tokens": settings.llm_max_new_tokens,
-            "temperature": settings.llm_temperature,
-            "top_p": settings.llm_top_p,
-        },
+        max_new_tokens=settings.llm_max_new_tokens,
+        temperature=settings.llm_temperature,
+        top_p=settings.llm_top_p,
     )
     chat_llm = ChatHuggingFace(llm=llm)
     embeddings = HuggingFaceEndpointEmbeddings(
@@ -137,10 +135,17 @@ def main() -> int:
             if isinstance(scores[k], (int, float)):
                 scores[k] = round(float(scores[k]), 4)
 
+    faithfulness_val = scores.get("faithfulness")
+    if isinstance(faithfulness_val, (int, float)):
+        hallucination_score = round(1.0 - float(faithfulness_val), 4)
+    else:
+        hallucination_score = "N/A"
+
     report = {
         "num_questions": len(questions),
         "metrics": {
             **scores,
+            "hallucination_score": hallucination_score,
             "latency_avg_seconds": round(avg_latency, 2),
             "latency_max_seconds": round(max_latency, 2),
         },

@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { chat, retrieve, uploadDocuments, openclawSend, generateDocument } from "./api";
 import type { ChatResponse, RetrieveResponse, DocumentsResponse } from "./api";
 import "./App.css";
+import voiceflipLogo from "./assets/images/voiceflip-logo.svg";
 
 const OPENCLAW_WEBCHAT_URL = import.meta.env.VITE_OPENCLAW_WEBCHAT_URL || "http://localhost:18789";
 
@@ -145,8 +146,9 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>RAG AI Engineer</h1>
-        <p className="subtitle">VoiceFlip — Chat, Upload Documents, Retrieve</p>
+        <img src={voiceflipLogo} alt="Voiceflip" className="header-logo" />
+        <h1>Voiceflip AI Engineer test</h1>
+        <p className="subtitle">Chat, Upload Documents, Retrieve</p>
         <nav className="tabs">
           <button
             className={activeTab === "chat" ? "active" : ""}

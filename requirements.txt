@@ -18,13 +18,16 @@ reportlab>=4.0.0
 
 # Excel metadata (chunking config per document)
 openpyxl>=3.1.0
+# Eval: load questions from PDF (question_list.pdf)
+pypdf>=4.0.0
 
 # Config from .env
 pydantic-settings>=2.0.0
 
 # Phase 3 — LangGraph agent
 langgraph>=1.0.0
-duckduckgo-search>=7.0.0
+# Web search (langchain_community expects ddgs; duckduckgo-search was renamed to ddgs)
+ddgs>=9.0.0
 
 # Structured logging
 structlog>=24.0.0
