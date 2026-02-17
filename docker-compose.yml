@@ -1,4 +1,13 @@
 services:
+  # Creates document/OpenClaw dirs on host before other services need them (run once per up)
+  init-dirs:
+    image: alpine:3.19
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    command: sh -c "mkdir -p .openclaw-config .openclaw-workspace docs && echo Directories ready"
+    restart: "no"
+
   app:
     build:
       context: .
@@ -43,6 +52,9 @@ services:
 
   vectordb:
     image: qdrant/qdrant:latest
+    depends_on:
+      init-dirs:
+        condition: service_completed_successfully
     ports:
       - "6333:6333"
       - "6334:6334"
@@ -55,6 +67,67 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # OpenClaw (Phase 6) — starts with main stack; use for research → generate doc → upload to RAG
+  openclaw-gateway:
+    image: alpine/openclaw:main
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+      RAG_API_URL: http://app:8000
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR:-./.openclaw-config}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./.openclaw-workspace}:/home/node/.openclaw/workspace
+      - ./openclaw-skill-rag:/home/node/.openclaw/workspace/skills/rag-query:ro
+    ports:
+      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+      - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
+    networks:
+      - default
+    depends_on:
+      init-dirs:
+        condition: service_completed_successfully
+      app:
+        condition: service_healthy
+    init: true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node dist/index.js health --token \"$$OPENCLAW_GATEWAY_TOKEN\" || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    command:
+      - node
+      - dist/index.js
+      - gateway
+      - --bind
+      - "lan"
+      - --port
+      - "18789"
+
+  # One-off CLI for first-time onboarding: docker compose run --rm openclaw-cli onboard
+  openclaw-cli:
+    image: alpine/openclaw:main
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+      BROWSER: echo
+      RAG_API_URL: http://app:8000
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR:-./.openclaw-config}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./.openclaw-workspace}:/home/node/.openclaw/workspace
+      - ./openclaw-skill-rag:/home/node/.openclaw/workspace/skills/rag-query:ro
+    networks:
+      - default
+    stdin_open: true
+    tty: true
+    init: true
+    entrypoint: ["node", "dist/index.js"]
+    profiles:
+      - tools
 
 networks:
   default:

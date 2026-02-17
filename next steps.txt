@@ -1,0 +1,7 @@
+dashboard para las métricas de evaluación
+
+openclaw para buscar información nueva y crear nuevos documentos para ingestar y crear documentos pdf y .docx
+
+asegurar que el chunking es correcto
+
+pasar documentacion a ingles

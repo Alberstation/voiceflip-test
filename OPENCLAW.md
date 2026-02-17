@@ -46,14 +46,14 @@ This document describes how the VoiceFlip RAG system is connected to [OpenClaw](
 ### Why this design
 
 - **Skill instead of MCP**: A custom skill with a small script keeps the integration simple and avoids running an extra MCP server. The agent already has `exec`; we only need to teach it when and how to call the RAG (via SKILL.md) and provide a script that does the HTTP call.
-- **Standalone OpenClaw Compose**: OpenClaw runs in its own compose file (`docker-compose.openclaw.yml`) so it stays optional and does not complicate the main stack. Both stacks share a Docker network (`voiceflip-net`) so OpenClaw can reach the RAG API at `http://app:8000`.
+- **OpenClaw in main Compose**: OpenClaw gateway and CLI are defined in `docker-compose.yml` (same network `voiceflip-net`), so a single `docker compose up -d` starts the full stack including OpenClaw.
 - **Frontend proxy**: The frontend cannot call OpenClaw’s Tools Invoke API from the browser (CORS and token). So the backend exposes `/openclaw/send`, which forwards to OpenClaw when `OPENCLAW_GATEWAY_URL` and `OPENCLAW_GATEWAY_TOKEN` are set.
 
 ## Deliverables
 
 | Deliverable | Location |
 |------------|----------|
-| Docker configuration for OpenClaw | `docker-compose.openclaw.yml` |
+| Docker configuration for OpenClaw | `docker-compose.yml` (services `openclaw-gateway`, `openclaw-cli`) |
 | RAG skill (SKILL.md + script) | `openclaw-skill-rag/` |
 | Backend proxy for “Send to OpenClaw” | `POST /openclaw/send` in `app/main.py` |
 | Frontend OpenClaw tab | `frontend/src/App.tsx` (tab + send form) |
@@ -79,41 +79,24 @@ This starts the API and Qdrant and creates the network `voiceflip-net` (see `doc
 
 ### 2. Start OpenClaw (optional)
 
-First-time setup:
-
-- Generate a gateway token and create config/workspace dirs. Either run the [official Docker setup](https://docs.openclaw.ai/install/docker) once (e.g. `OPENCLAW_IMAGE=alpine/openclaw:main ./docker-setup.sh` from the OpenClaw repo), or create dirs and a token manually:
-
-  ```bash
-  mkdir -p .openclaw-config .openclaw-workspace
-  # Put a generated token in .env:
-  # OPENCLAW_GATEWAY_TOKEN=your-token-here
-  ```
-
-- Add to `.env` (or export):
-
-  ```bash
-  OPENCLAW_GATEWAY_TOKEN=<your-token>
-  OPENCLAW_CONFIG_DIR=./.openclaw-config
-  OPENCLAW_WORKSPACE_DIR=./.openclaw-workspace
-  ```
-
-Then start OpenClaw so it joins the same network as the RAG app:
+OpenClaw is part of the main stack. Start everything with:
 
 ```bash
-docker compose -f docker-compose.openclaw.yml up -d
+mkdir -p .openclaw-config .openclaw-workspace
+docker compose up -d
 ```
 
-- OpenClaw will use `.openclaw-config` and `.openclaw-workspace` on the host.
-- The RAG skill is mounted from `./openclaw-skill-rag` into the container at `/home/node/.openclaw/workspace/skills/rag-query`.
-- Inside the container, `RAG_API_URL` is set to `http://app:8000` so the skill script can reach the RAG API.
+- OpenClaw gateway starts with app, vectordb, and frontend.
+- The RAG skill is mounted from `./openclaw-skill-rag` into the container.
+- Inside the container, `RAG_API_URL` is set to `http://app:8000`.
 
-If you have not run the OpenClaw onboarding wizard yet, run it once:
+First-time only — run the onboarding wizard (model, channels, etc.):
 
 ```bash
-docker compose -f docker-compose.openclaw.yml run --rm openclaw-cli onboard
+docker compose --profile tools run --rm openclaw-cli onboard
 ```
 
-Follow the wizard (model, channels, etc.). After that, the gateway can use the RAG skill.
+After that, the gateway can use the RAG skill. For a **research → document → RAG** flow: use the frontend OpenClaw tab to send a research request, paste the reply into “Generate document from research text”, download PDF or DOCX, then upload the DOCX in the Upload tab to add it to the RAG context.
 
 ### 3. Functional flow: instruction → RAG query → result
 
@@ -134,7 +117,7 @@ docker compose run --rm -v ./docs:/app/docs -v ./Real_Estate_RAG_Documents.xlsx:
 
 1. **Configure the backend** so it can forward messages to OpenClaw. In `.env` (or in the environment of the `app` service):
 
-   - When OpenClaw runs via `docker-compose.openclaw.yml` on the same host:
+   - When OpenClaw runs in the main stack (`docker compose up -d`):
      - `OPENCLAW_GATEWAY_URL=http://openclaw-gateway:18789`
    - When OpenClaw runs on the host (e.g. `openclaw gateway`):
      - On Windows/Mac: `OPENCLAW_GATEWAY_URL=http://host.docker.internal:18789`
@@ -166,7 +149,7 @@ docker compose run --rm -v ./docs:/app/docs -v ./Real_Estate_RAG_Documents.xlsx:
 ## Evidence of execution
 
 - **Skill**: `openclaw-skill-rag/SKILL.md` and `openclaw-skill-rag/query-rag.sh` are in the repo; the script is executable and uses `RAG_API_URL` and `curl`.
-- **Docker**: `docker-compose.openclaw.yml` defines `openclaw-gateway` and `openclaw-cli` with the skill volume and `voiceflip-net`.
+- **Docker**: `docker-compose.yml` defines `openclaw-gateway` and `openclaw-cli` (profile `tools`) with the skill volume and `voiceflip-net`.
 - **Flow**: After starting both stacks and onboarding OpenClaw, sending “Use the RAG skill to answer: …” in WebChat produces an answer from the RAG API (visible in OpenClaw logs and chat).
 - **Frontend**: The OpenClaw tab shows the WebChat link and “Send to OpenClaw”; if the backend is configured and `sessions_send` is allowlisted, the message is delivered and the reply appears in OpenClaw.
 
@@ -174,8 +157,7 @@ docker compose run --rm -v ./docs:/app/docs -v ./Real_Estate_RAG_Documents.xlsx:
 
 - `openclaw-skill-rag/SKILL.md` — Skill manifest and instructions for the agent.
 - `openclaw-skill-rag/query-rag.sh` — Script that calls the RAG API (uses `RAG_API_URL`, default `http://app:8000`).
-- `docker-compose.openclaw.yml` — OpenClaw services and network.
-- `docker-compose.yml` — Main stack; defines network `voiceflip-net`.
+- `docker-compose.yml` — Main stack (app, vectordb, frontend, openclaw-gateway, openclaw-cli); defines network `voiceflip-net`.
 - `app/main.py` — Endpoint `POST /openclaw/send`.
 - `app/config.py` — `openclaw_gateway_url`, `openclaw_gateway_token`.
 - `frontend/src/App.tsx` — OpenClaw tab and send form.

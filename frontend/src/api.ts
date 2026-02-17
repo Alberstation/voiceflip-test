@@ -111,3 +111,38 @@ export async function openclawSend(message: string): Promise<OpenClawSendRespons
   });
   return handleResponse<OpenClawSendResponse>(res);
 }
+
+/** Generate DOCX or PDF from title + content; triggers browser download. */
+export async function generateDocument(
+  title: string,
+  content: string,
+  format: "docx" | "pdf"
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/documents/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, content, format }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg: string;
+    try {
+      const j = JSON.parse(text);
+      msg = j.detail ?? text;
+    } catch {
+      msg = text || res.statusText;
+    }
+    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+  }
+  const disposition = res.headers.get("Content-Disposition");
+  const filename =
+    disposition?.match(/filename="?([^";\n]+)"?/)?.[1]?.trim() ||
+    `document.${format}`;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

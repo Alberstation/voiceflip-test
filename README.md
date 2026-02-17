@@ -41,8 +41,8 @@ All services use **healthchecks**. The table below lists how to run each service
 | **vectordb** | `docker-compose.yml` | 6333, 6334 | TCP 6333 | — |
 | **app** | `docker-compose.yml` | 8000 | `GET http://localhost:8000/health` | vectordb (healthy) |
 | **frontend** | `docker-compose.yml` | 5173 | `GET http://localhost:5173/` | app (healthy) |
-| **openclaw-gateway** | `docker-compose.openclaw.yml` | 18789, 18790 | `node dist/index.js health --token $OPENCLAW_GATEWAY_TOKEN` | network `voiceflip-net` (app running) |
-| **openclaw-cli** | `docker-compose.openclaw.yml` | — | (one-off for onboard) | — |
+| **openclaw-gateway** | `docker-compose.yml` | 18789, 18790 | `node dist/index.js health --token $OPENCLAW_GATEWAY_TOKEN` | app (healthy) |
+| **openclaw-cli** | `docker-compose.yml` (profile: tools) | — | One-off: `docker compose --profile tools run --rm openclaw-cli onboard` | — |
 
 ### Health checks (verify manually)
 
@@ -57,7 +57,7 @@ Docker Compose runs healthchecks automatically; `depends_on` with `condition: se
 
 ---
 
-## Quick start (full stack: app + vectordb + frontend)
+## Quick start (full stack: app + vectordb + frontend + OpenClaw)
 
 1. **Clone and set env**
 
@@ -66,28 +66,33 @@ Docker Compose runs healthchecks automatically; `depends_on` with `condition: se
    cd voiceflip-test
    cp .env.example .env
    # Set HUGGINGFACEHUB_API_TOKEN in .env
+   # Optional: set OPENCLAW_* in .env for OpenClaw (see below)
    ```
 
-2. **Start all main services**
+2. **Create OpenClaw dirs** (needed if using OpenClaw)
+
+   ```bash
+   mkdir -p .openclaw-config .openclaw-workspace
+   ```
+
+3. **Start all services** (app, vectordb, frontend, openclaw-gateway)
 
    ```bash
    docker compose up --build -d
    ```
 
-3. **Wait for health** (optional; Compose already waits for app/vectordb)
+4. **First-time OpenClaw only**: run onboarding once (model, channels)
 
    ```bash
-   docker compose ps
-   # All services should show "healthy" (or "running" for frontend once ready)
-   curl -s http://localhost:8000/health
-   curl -s -o /dev/null -w "%{http_code}" http://localhost:5173/
+   docker compose --profile tools run --rm openclaw-cli onboard
    ```
 
-4. **Use the app**
+5. **Use the app**
 
    - **API** — http://localhost:8000  
    - **OpenAPI docs** — http://localhost:8000/docs  
    - **Frontend** — http://localhost:5173  
+   - **OpenClaw WebChat** — http://localhost:18789 (if OpenClaw env is set)  
 
 ---
 
@@ -126,42 +131,25 @@ cd frontend && npm install && npm run dev
 
 ---
 
-## Running OpenClaw (optional, Phase 6)
+## Running OpenClaw (Phase 6 — research → document → RAG)
 
-OpenClaw uses a **separate** compose file and the shared network `voiceflip-net` so it can reach the RAG API at `http://app:8000`.
+OpenClaw is **included** in the main stack. A single `docker compose up -d` starts app, vectordb, frontend, and openclaw-gateway.
 
-1. **Start the main stack first** (so `voiceflip-net` exists and `app` is reachable)
+**Flow**: Ask OpenClaw for US housing research (e.g. in WebChat or via the frontend “Send to OpenClaw”) → copy the reply → in the frontend OpenClaw tab paste the text and **Generate document** (PDF or DOCX) → download → in **Upload Documents** upload the file to add it to the RAG context (DOCX supported for ingestion).
 
-   ```bash
-   docker compose up -d app vectordb
-   ```
+1. **Set OpenClaw env** in `.env` (see table above): `OPENCLAW_GATEWAY_TOKEN`, `OPENCLAW_GATEWAY_URL`, `OPENCLAW_CONFIG_DIR`, `OPENCLAW_WORKSPACE_DIR`.
 
-2. **Set OpenClaw env** in `.env`
+2. **Start everything**: `docker compose up -d`
 
-   - `OPENCLAW_GATEWAY_TOKEN` (generate or use token from OpenClaw setup)
-   - Optional: `OPENCLAW_CONFIG_DIR`, `OPENCLAW_WORKSPACE_DIR` (defaults: `./.openclaw-config`, `./.openclaw-workspace`)
-
-3. **Create config/workspace dirs** (if not present)
+3. **First-time only**: run onboarding once (model, channels)
 
    ```bash
-   mkdir -p .openclaw-config .openclaw-workspace
+   docker compose --profile tools run --rm openclaw-cli onboard
    ```
 
-4. **Start OpenClaw**
+4. **Health**: OpenClaw WebChat at http://localhost:18789
 
-   ```bash
-   docker compose -f docker-compose.openclaw.yml up -d
-   ```
-
-5. **Onboard once** (model, channels, etc.)
-
-   ```bash
-   docker compose -f docker-compose.openclaw.yml run --rm openclaw-cli onboard
-   ```
-
-6. **Health**: OpenClaw gateway healthcheck runs inside the container (`node dist/index.js health --token $OPENCLAW_GATEWAY_TOKEN`). From the host: open http://localhost:18789 or use the dashboard link from the CLI.
-
-Full details: [docs/OPENCLAW.md](docs/OPENCLAW.md).
+Full details: [OPENCLAW.md](OPENCLAW.md).
 
 ---
 
@@ -294,8 +282,7 @@ See [Running OpenClaw](#running-openclaw-optional-phase-6) and [docs/OPENCLAW.md
 │   └── eval/
 ├── frontend/                # React (Vite) UI
 ├── openclaw-skill-rag/      # OpenClaw RAG skill
-├── docker-compose.yml       # app, vectordb, frontend (all with healthchecks)
-├── docker-compose.openclaw.yml
+├── docker-compose.yml       # app, vectordb, frontend, openclaw-gateway (+ openclaw-cli profile)
 ├── docs/OPENCLAW.md, EVALUATION.md
 ├── .env.example
 └── requirements.txt

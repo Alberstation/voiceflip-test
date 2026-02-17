@@ -43,3 +43,10 @@ class OpenClawSendResponse(BaseModel):
     ok: bool
     result: dict | None = None
     error: str | None = None
+
+
+# ----- Generate document (from OpenClaw research text) -----
+class GenerateDocumentRequest(BaseModel):
+    title: str
+    content: str
+    format: str = "docx"  # "docx" | "pdf"

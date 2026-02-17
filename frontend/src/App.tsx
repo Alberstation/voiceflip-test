@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { chat, retrieve, uploadDocuments, openclawSend } from "./api";
+import { chat, retrieve, uploadDocuments, openclawSend, generateDocument } from "./api";
 import type { ChatResponse, RetrieveResponse, DocumentsResponse } from "./api";
 import "./App.css";
 
@@ -29,6 +29,11 @@ function App() {
   // OpenClaw state
   const [openclawMessage, setOpenclawMessage] = useState("");
   const [openclawSent, setOpenclawSent] = useState<string | null>(null);
+  // Generate document from research text (title, content, format)
+  const [docTitle, setDocTitle] = useState("");
+  const [docContent, setDocContent] = useState("");
+  const [docFormat, setDocFormat] = useState<"docx" | "pdf">("docx");
+  const [docGenerated, setDocGenerated] = useState(false);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -114,6 +119,24 @@ function App() {
       setOpenclawMessage("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Send to OpenClaw failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateDocument = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const title = docTitle.trim() || "Research Document";
+    const content = docContent.trim();
+    if (!content || loading) return;
+    setError(null);
+    setDocGenerated(false);
+    setLoading(true);
+    try {
+      await generateDocument(title, content, docFormat);
+      setDocGenerated(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Generate document failed");
     } finally {
       setLoading(false);
     }
@@ -325,7 +348,7 @@ function App() {
         {activeTab === "openclaw" && (
           <section className="panel openclaw-panel">
             <p className="hint">
-              Send a message to OpenClaw’s main session. Use the RAG skill there, e.g. &quot;Use the RAG skill to answer: What tax credits exist for home buyers?&quot;
+              <strong>Flow:</strong> Ask OpenClaw for US housing research (e.g. &quot;Search for information about first-time home buyer programs in the US&quot;). Check the reply in WebChat, paste it below, generate a PDF or DOCX, download it, then add it to the RAG via the Upload tab.
             </p>
             <div className="openclaw-link">
               <a href={OPENCLAW_WEBCHAT_URL} target="_blank" rel="noopener noreferrer">
@@ -337,7 +360,7 @@ function App() {
                 type="text"
                 value={openclawMessage}
                 onChange={(e) => setOpenclawMessage(e.target.value)}
-                placeholder="Message to send to OpenClaw…"
+                placeholder="e.g. Search for US housing tax credits and first-time buyer programs…"
                 disabled={loading}
                 autoComplete="off"
               />
@@ -347,7 +370,48 @@ function App() {
             </form>
             {openclawSent && (
               <div className="result-box success">
-                Message sent: &quot;{openclawSent}&quot; — check OpenClaw WebChat or your connected channel for the reply.
+                Message sent. Check OpenClaw WebChat for the reply, then paste it below to generate a document.
+              </div>
+            )}
+
+            <h3 className="section-title">Generate document from research text</h3>
+            <p className="hint">Paste the text from OpenClaw (or any source), add a title, and download as PDF or DOCX. Then use the Upload tab to add it to the RAG context.</p>
+            <form onSubmit={handleGenerateDocument} className="form generate-doc-form">
+              <input
+                type="text"
+                value={docTitle}
+                onChange={(e) => setDocTitle(e.target.value)}
+                placeholder="Document title (e.g. US Housing Programs Summary)"
+                disabled={loading}
+                autoComplete="off"
+              />
+              <textarea
+                value={docContent}
+                onChange={(e) => setDocContent(e.target.value)}
+                placeholder="Paste research text here…"
+                rows={8}
+                disabled={loading}
+              />
+              <div className="form-row">
+                <label>
+                  Format:{" "}
+                  <select
+                    value={docFormat}
+                    onChange={(e) => setDocFormat(e.target.value as "docx" | "pdf")}
+                    disabled={loading}
+                  >
+                    <option value="docx">DOCX</option>
+                    <option value="pdf">PDF</option>
+                  </select>
+                </label>
+                <button type="submit" disabled={loading || !docContent.trim()}>
+                  {loading ? "Generating…" : "Generate and download"}
+                </button>
+              </div>
+            </form>
+            {docGenerated && (
+              <div className="result-box success">
+                Document downloaded. To add it to the RAG context, go to <button type="button" className="link-button" onClick={() => { setActiveTab("upload"); clearError(); }}>Upload Documents</button> and upload the file (DOCX is supported for ingestion).
               </div>
             )}
           </section>
