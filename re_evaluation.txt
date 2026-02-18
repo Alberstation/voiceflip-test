@@ -1,3 +1,0 @@
-docker compose run --rm -v ./docs:/app/docs -v ./Real_Estate_RAG_Documents.xlsx:/app/Real_Estate_RAG_Documents.xlsx app python -m app.ingest
-docker compose run --rm -v ./docs:/app/docs -v ./Real_Estate_RAG_Documents.xlsx:/app/Real_Estate_RAG_Documents.xlsx app python -m app.ingest
-docker compose run --rm -v ./question_list.pdf:/app/question_list.pdf -v ./eval_output:/app/eval_output -e EVAL_DATASET_PATH=/app/question_list.pdf -e EVAL_REPORT_PATH=/app/eval_output/eval_report.json app python -m app.eval.run_eval

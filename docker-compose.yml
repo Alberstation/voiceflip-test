@@ -19,6 +19,10 @@ services:
       - QDRANT_PORT=6333
       # Phase 2: from .env (Compose loads project .env for substitution)
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN:-}
+      # Phase 4: stronger LLM for RAGAS eval (avoids OutputParserException with small models)
+      - EVAL_LLM_MODEL=${EVAL_LLM_MODEL:-}
+      - EVAL_LLM_MAX_NEW_TOKENS=${EVAL_LLM_MAX_NEW_TOKENS:-2048}
+      - EVAL_SKIP_CONTEXT_PRECISION=${EVAL_SKIP_CONTEXT_PRECISION:-false}
       # Phase 6: optional OpenClaw proxy (frontend "Send to OpenClaw"). From app container use service name.
       - OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL:-http://openclaw-gateway:18789}
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-dev-token}

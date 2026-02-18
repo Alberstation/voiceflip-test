@@ -2,7 +2,7 @@
 Application constants. Centralizes magic strings and supported formats.
 """
 
-SUPPORTED_DOC_EXTENSIONS = frozenset({".docx", ".html", ".htm"})
+SUPPORTED_DOC_EXTENSIONS = frozenset({".docx", ".html", ".htm", ".pdf"})
 
 RETRIEVAL_TOP_K = "top_k"
 RETRIEVAL_MMR = "mmr"

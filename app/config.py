@@ -64,6 +64,12 @@ class Settings(BaseSettings):
 
     # Eval — cap questions to reduce token usage and stay within HF free tier
     eval_max_questions: int = 20
+    # Optional: stronger LLM for RAGAS judge (small models like 1.5B produce unreliable scores)
+    eval_llm_model: str = ""  # e.g. "mistralai/Mistral-7B-Instruct-v0.2" for better judging
+    # Higher max tokens for eval LLM (RAGAS prompts need longer output; default 350 causes LLMDidNotFinishException)
+    eval_llm_max_new_tokens: int = 2048
+    # Skip context_precision (its statement_generator has strict schema; often fails with RAGAS + HF models)
+    eval_skip_context_precision: bool = False
 
     # OpenClaw (Phase 6) — optional; for frontend "Send to OpenClaw"
     openclaw_gateway_url: str = ""

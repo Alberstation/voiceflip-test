@@ -1,5 +1,5 @@
 """
-Document loaders: DOCX and HTML.
+Document loaders: DOCX, HTML, and PDF.
 Return list of (content, metadata) for downstream chunking.
 """
 from pathlib import Path
@@ -7,6 +7,7 @@ from typing import Any
 
 from bs4 import BeautifulSoup
 from docx import Document as DocxDocument
+from pypdf import PdfReader
 
 from app.cleaning import clean_text
 from app.constants import SUPPORTED_DOC_EXTENSIONS
@@ -45,6 +46,25 @@ def load_docx(path: Path, doc_id: str | None = None) -> list[tuple[str, dict[str
     return parts
 
 
+def load_pdf(path: Path, doc_id: str | None = None) -> list[tuple[str, dict[str, Any]]]:
+    """
+    Load a PDF file. One block per page (text extracted). doc_id: optional identifier.
+    """
+    doc_id = doc_id or path.stem
+    reader = PdfReader(path)
+    parts: list[tuple[str, dict[str, Any]]] = []
+    for i, page in enumerate(reader.pages):
+        text = page.extract_text()
+        if not text or not text.strip():
+            continue
+        text = clean_text(text.strip())
+        if not text:
+            continue
+        meta = _metadata_from_path(path, doc_id) | {"page_or_para": i + 1}
+        parts.append((text, meta))
+    return parts
+
+
 def load_html(path: Path, doc_id: str | None = None) -> list[tuple[str, dict[str, Any]]]:
     """
     Load an HTML file. Extracts text from body; optional per-element blocks.
@@ -65,8 +85,12 @@ def load_html(path: Path, doc_id: str | None = None) -> list[tuple[str, dict[str
 
 
 def load_document(path: Path, doc_id: str | None = None) -> list[tuple[str, dict[str, Any]]]:
-    """Dispatch by extension: .docx -> load_docx, .html/.htm -> load_html."""
+    """Dispatch by extension: .docx -> load_docx, .pdf -> load_pdf, .html/.htm -> load_html."""
     suf = path.suffix.lower()
     if suf not in SUPPORTED_DOC_EXTENSIONS:
-        raise ValueError(f"Unsupported format: {suf}. Use DOCX or HTML.")
-    return load_docx(path, doc_id) if suf == ".docx" else load_html(path, doc_id)
+        raise ValueError(f"Unsupported format: {suf}. Use DOCX, PDF, or HTML.")
+    if suf == ".pdf":
+        return load_pdf(path, doc_id)
+    if suf == ".docx":
+        return load_docx(path, doc_id)
+    return load_html(path, doc_id)

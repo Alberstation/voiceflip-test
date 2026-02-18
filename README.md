@@ -10,6 +10,52 @@ Retrieval-Augmented Generation (RAG) pipeline with Docker-based environment: Qdr
 
 ---
 
+## Main decisions by phase
+
+Summary of key technical decisions per phase, aligned with [TECHNICAL_TEST_CANDIDATE.md](TECHNICAL_TEST_CANDIDATE.md).
+
+### Phase 1 — Environment setup
+
+- **Docker & Docker Compose**: Multi-stage Dockerfile; `docker-compose.yml` with `app`, `vectordb`, `frontend`, `openclaw-gateway`; health checks; `.env.example`; persistent volume for Qdrant.
+- **Git**: Conventional Commits; atomic, descriptive commits; `.gitignore` for Python/Docker.
+- **Document corpus context**: The RAG corpus and evaluation context are driven by:
+  - **Real_Estate_RAG_Documents.xlsx** — defines the document set and per-file chunking strategy (e.g. overlap vs row_table).
+  - **RAG_20_QA_Homebuying.pdf** — homebuying Q&A content used as part of the document/evaluation context.
+
+### Phase 2 — RAG pipeline
+
+- **Retrieval techniques**:
+  - **Fixed-size chunking with overlap** — default strategy (configurable `chunk_size` / `chunk_overlap`). This choice improved RAGAS metrics (e.g. context precision/recall) compared to no overlap.
+  - **Table linearization** — for the *Fannie Mae Eligibility Matrix* (2025), table content was linearized into a structured text document to improve retrieval over tabular data. The resulting artifact is **Fannie_Mae_Eligibility_Matrix_contextual_linearized.pdf** (in `docs/`), ingested like other PDFs and optionally chunked with the row-based strategy where appropriate.
+- **Chunking**: At least two strategies — overlap (fixed size + overlap) and row-based (`row_table`) for table-friendly documents; strategy per file from the metadata Excel when available.
+- **Loaders**: DOCX, HTML, PDF; text cleaning and normalization; metadata preserved.
+- **Embeddings & LLM**: Open-source models via Hugging Face Inference API (e.g. `sentence-transformers/all-MiniLM-L6-v2`, `Qwen/Qwen2.5-1.5B-Instruct`); storage in Qdrant.
+- **Retrieval**: At least two techniques — top_k and MMR — with structured prompts and edge-case handling.
+
+### Phase 3 — LangGraph agent (chatbot goal)
+
+- **Goal**: Act as a **housing / real estate assistant** that answers questions about homebuying, mortgages, tax credits, eligibility, and related topics using the RAG knowledge base, with fallbacks when needed.
+- **Behaviour**: Query routing (RAG vs web search vs general chat); RAG node; relevance evaluation of retrieved context; hallucination check on the answer; **web search fallback** when context is not relevant or for current events; conversational memory; structured logging. Custom tools: RAG search (top_k) and RAG search with MMR.
+
+### Phase 4 — RAG evaluation (technical features selected)
+
+- **Tool**: **RAGAS** (open-source, reference-free metrics, HuggingFace-compatible; same remote LLM as judge).
+- **Metrics**: Faithfulness, Answer Relevancy, Context Precision, Context Recall, Hallucination Score, Latency (avg/max).
+- **Dataset**: Question list (PDF or DOCX), ≥15 Q/A pairs; optional ground truth for context recall.
+- **Deliverables**: Executable evaluation script (`app.eval.run_eval`), aggregated report (JSON), RAGAS Dashboard in the frontend; at least one documented improvement (e.g. chunk size/overlap, MMR, similarity threshold) based on results.
+- **Limitations**: Small models as judges are documented (variability, sensitivity); results are indicative; production use would benefit from larger judges or human eval.
+
+### Phase 5 — API / frontend (React and features)
+
+- **API**: **FastAPI** — OpenAPI docs at `/docs`; endpoints for health, RAG query, chat, documents upload, retrieval (top_k/MMR), OpenClaw proxy, document generation, and RAGAS evaluation (report + run).
+- **Frontend**: **React** (Vite) — single-page UI with tabs: **Chat** (agent with session memory), **Upload Documents**, **Retrieval** (top_k/MMR), **OpenClaw** (send to OpenClaw + generate document), **RAGAS Dashboard** (load report, run evaluation, show metrics). React was chosen for a maintainable, component-based UI and easy integration with the FastAPI backend; Vite for fast dev and build. Features include error handling, optional file upload for eval, and a working demo flow end-to-end.
+
+### Phase 6 — OpenClaw (bonus)
+
+- OpenClaw runs via Docker; gateway in the main compose; integration via API/proxy and optional RAG skill; flow: research → generate document (PDF/DOCX) → upload to RAG. See [OPENCLAW.md](OPENCLAW.md).
+
+---
+
 ## Environment variables
 
 Copy `.env.example` to `.env` and set values as needed. All parameters are documented in [.env.example](.env.example).

@@ -59,18 +59,17 @@ Small models (1.5B–7B parameters) used as LLM judges have known limitations:
 # 1. Ingest documents (if not already done)
 docker compose run --rm -v ./docs:/app/docs -v ./Real_Estate_RAG_Documents.xlsx:/app/Real_Estate_RAG_Documents.xlsx app python -m app.ingest
 
-# 2. Run evaluation (mount question_list.docx)
-docker compose run --rm -v ./question_list.docx:/app/question_list.docx app python -m app.eval.run_eval
+# 2. Run evaluation (mount question_list.pdf or .docx)
+docker compose run --rm -v ./question_list.pdf:/app/question_list.pdf -v ./eval_output:/app/eval_output -e EVAL_REPORT_PATH=/app/eval_output/eval_report.json app python -m app.eval.run_eval
 ```
 
-Output: `eval_report.json` and printed report. To save to host, mount a directory:
+### Environment options
 
-```bash
-docker compose run --rm \
-  -v ./question_list.docx:/app/question_list.docx \
-  -v ./eval_output:/app/eval_output \
-  -e EVAL_REPORT_PATH=/app/eval_output/eval_report.json \
-  app python -m app.eval.run_eval
-```
+| Variable | Description |
+|----------|-------------|
+| `EVAL_DATASET_PATH` | Path to question list (PDF/DOCX). Default: `/app/question_list.pdf` |
+| `EVAL_REPORT_PATH` | Output JSON path. Default: `/app/eval_report.json` |
+| `EVAL_DEBUG` | Set to `1` or `true` to print sample Q/A/context previews to stderr |
+| `EVAL_LLM_MODEL` | Override LLM for RAGAS judge (e.g. `mistralai/Mistral-7B-Instruct-v0.2`). Small models (1.5B) produce unreliable scores. |
 
-Report will be at `./eval_output/eval_report.json`.
+Report will be at `./eval_output/eval_report.json` when using the mount above.

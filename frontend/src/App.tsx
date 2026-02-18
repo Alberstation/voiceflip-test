@@ -106,7 +106,7 @@ function App() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files ?? []);
     const valid = selected.filter((f) =>
-      [".docx", ".html", ".htm"].some((ext) =>
+      [".docx", ".html", ".htm", ".pdf"].some((ext) =>
         f.name.toLowerCase().endsWith(ext)
       )
     );
@@ -305,14 +305,14 @@ function App() {
         {activeTab === "upload" && (
           <section className="panel upload-panel">
             <p className="hint">
-              Supported formats: DOCX, HTML. Files are chunked and added to the vector store.
+              Supported formats: DOCX, PDF, HTML. Files are chunked and added to the vector store.
             </p>
             <form onSubmit={handleUploadSubmit} className="form upload-form">
               <label className="file-label">
                 <input
                   type="file"
                   multiple
-                  accept=".docx,.html,.htm"
+                  accept=".docx,.html,.htm,.pdf"
                   onChange={handleFileChange}
                 />
                 Choose files
@@ -474,7 +474,7 @@ function App() {
             </form>
             {docGenerated && (
               <div className="result-box success">
-                Document downloaded. To add it to the RAG context, go to <button type="button" className="link-button" onClick={() => { setActiveTab("upload"); clearError(); }}>Upload Documents</button> and upload the file (DOCX is supported for ingestion).
+                Document downloaded. To add it to the RAG context, go to <button type="button" className="link-button" onClick={() => { setActiveTab("upload"); clearError(); }}>Upload Documents</button> and upload the file (DOCX and PDF supported for ingestion).
               </div>
             )}
           </section>

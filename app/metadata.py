@@ -60,7 +60,7 @@ def _normalize_filename(fname: str) -> str:
     """Ensure filename has a supported extension."""
     if not fname:
         return ""
-    if not fname.lower().endswith((".docx", ".html", ".htm")):
+    if not fname.lower().endswith((".docx", ".html", ".htm", ".pdf")):
         return fname + ".docx"
     return fname
 

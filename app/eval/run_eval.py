@@ -19,6 +19,7 @@ from app.vectorstore import get_vector_store
 
 EVAL_QUESTION_PATH = Path(os.environ.get("EVAL_DATASET_PATH", "/app/question_list.pdf"))
 EVAL_REPORT_PATH = Path(os.environ.get("EVAL_REPORT_PATH", "/app/eval_report.json"))
+EVAL_DEBUG = os.environ.get("EVAL_DEBUG", "").lower() in ("1", "true", "yes")
 
 
 def run_rag_for_eval(questions: list[dict]) -> tuple[list[dict], list[float]]:
@@ -70,13 +71,24 @@ def run_evaluation(
 
     samples, latencies = run_rag_for_eval(questions)
 
+    # Sanity checks: ensure contexts are present (RAGAS needs them)
+    empty_ctx = sum(1 for s in samples if not s["contexts"])
+    if empty_ctx > 0:
+        print(f"Warning: {empty_ctx}/{len(samples)} samples have empty contexts.", file=sys.stderr)
+
+    if EVAL_DEBUG:
+        for i, s in enumerate(samples[:3]):
+            ctx_preview = (s["contexts"][0][:150] + "...") if s["contexts"] else "(none)"
+            print(f"[DEBUG] Sample {i}: q={s['question'][:60]}... ctx_cnt={len(s['contexts'])} first_ctx={ctx_preview}", file=sys.stderr)
+
+    # RAGAS v0.2+ expects: user_input, retrieved_contexts, response, reference (or legacy: question, answer, contexts, ground_truth)
     data = {
         "question": [s["question"] for s in samples],
         "answer": [s["answer"] for s in samples],
         "contexts": [s["contexts"] for s in samples],
         "ground_truth": [s["ground_truth"] for s in samples],
     }
-    dataset = Dataset.from_dict(data)
+    hf_dataset = Dataset.from_dict(data)
 
     try:
         from ragas import evaluate
@@ -89,13 +101,28 @@ def run_evaluation(
         except ImportError as e:
             raise RuntimeError("RAGAS not installed. pip install ragas") from e
 
+    # RAGAS v0.2+ expects user_input, response, retrieved_contexts, reference
+    column_map = {
+        "user_input": "question",
+        "response": "answer",
+        "retrieved_contexts": "contexts",
+        "reference": "ground_truth",
+    }
+
+    # Use HF Dataset; evaluate() will remap columns via column_map
+    dataset = hf_dataset
+
     from langchain_huggingface import HuggingFaceEndpointEmbeddings
     from ragas.llms import LangchainLLMWrapper
     from ragas.embeddings import LangchainEmbeddingsWrapper
 
     from app.llm import get_llm
 
-    chat_llm = get_llm()
+    # Use dedicated eval LLM if set; higher max_tokens to avoid LLMDidNotFinishException
+    if settings.eval_llm_model:
+        chat_llm = get_llm(model=settings.eval_llm_model, max_new_tokens=settings.eval_llm_max_new_tokens)
+    else:
+        chat_llm = get_llm()
     embeddings = HuggingFaceEndpointEmbeddings(
         model=settings.embedding_model,
         huggingfacehub_api_token=settings.huggingfacehub_api_token or None,
@@ -105,7 +132,9 @@ def run_evaluation(
     ragas_embeddings = LangchainEmbeddingsWrapper(embeddings)
 
     has_gt = sum(1 for s in samples if s["ground_truth"])
-    metrics_list = [faithfulness, answer_relevancy, context_precision]
+    metrics_list = [faithfulness, answer_relevancy]
+    if not getattr(settings, "eval_skip_context_precision", False):
+        metrics_list.append(context_precision)
     if has_gt > 0:
         metrics_list.append(context_recall)
 
@@ -114,6 +143,7 @@ def run_evaluation(
         metrics=metrics_list,
         llm=ragas_llm,
         embeddings=ragas_embeddings,
+        column_map=column_map,
         show_progress=False,
     )
 
@@ -121,17 +151,48 @@ def run_evaluation(
     max_latency = max(latencies) if latencies else 0
 
     scores = {}
-    if hasattr(result, "to_pandas"):
+    metric_keys = ["faithfulness", "answer_relevancy", "context_precision", "context_recall"]
+
+    def _find_col(df, key: str):
+        if key in df.columns:
+            return key
+        low = key.lower()
+        for c in df.columns:
+            if c and c.lower() == low:
+                return c
+        return None
+
+    if hasattr(result, "to_pandas") and callable(getattr(result, "to_pandas")):
         df = result.to_pandas()
-        for col in ["faithfulness", "answer_relevancy", "context_precision", "context_recall"]:
-            if col in df.columns:
-                vals = df[col].dropna()
+        for col in metric_keys:
+            c = _find_col(df, col)
+            if c is not None:
+                vals = df[c].dropna()
                 scores[col] = round(float(vals.mean()), 4) if len(vals) > 0 else "N/A"
-    else:
-        for k in ["faithfulness", "answer_relevancy", "context_precision", "context_recall"]:
-            scores[k] = getattr(result, k, "N/A")
-            if isinstance(scores[k], (int, float)):
-                scores[k] = round(float(scores[k]), 4)
+    if hasattr(result, "scores") and result.scores:
+        # RAGAS v0.2+ returns result.scores as list of dicts; use to fill any missing
+        import numpy as np
+
+        def _get_metric(row: dict, key: str):
+            v = row.get(key)
+            if v is not None:
+                return v
+            for rk, rv in row.items():
+                if rk and rk.lower() == key.lower():
+                    return rv
+            return None
+
+        for k in metric_keys:
+            if k in scores:
+                continue
+            vals = [_get_metric(r, k) for r in result.scores if isinstance(r, dict)]
+            vals = [v for v in vals if v is not None and isinstance(v, (int, float)) and not (isinstance(v, float) and np.isnan(v))]
+            if vals:
+                scores[k] = round(float(np.mean(vals)), 4)
+    for k in metric_keys:
+        if k not in scores:
+            v = getattr(result, k, "N/A")
+            scores[k] = round(float(v), 4) if isinstance(v, (int, float)) else "N/A"
 
     faithfulness_val = scores.get("faithfulness")
     if isinstance(faithfulness_val, (int, float)):
@@ -139,6 +200,7 @@ def run_evaluation(
     else:
         hallucination_score = "N/A"
 
+    llm_judge = settings.eval_llm_model or settings.llm_model
     report = {
         "num_questions": len(questions),
         "metrics": {
@@ -148,8 +210,8 @@ def run_evaluation(
             "latency_max_seconds": round(max_latency, 2),
         },
         "tool": "RAGAS",
-        "llm_judge": settings.llm_model,
-        "limitations": "Small models (1.5B-7B) as judges have known limitations in evaluation quality.",
+        "llm_judge": llm_judge,
+        "limitations": "Small models (1.5B-7B) as judges have known limitations. Set EVAL_LLM_MODEL to a 7B+ model for more reliable scores.",
     }
 
     if report_path is not None:

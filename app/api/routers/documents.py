@@ -14,7 +14,7 @@ logger = structlog.get_logger()
 
 @router.post("/documents")
 def add_documents(files: list[UploadFile] = File(...)):
-    """Add new DOCX/HTML documents to the RAG. Accepts multipart/form-data with file(s)."""
+    """Add new DOCX, PDF, or HTML documents to the RAG. Accepts multipart/form-data with file(s)."""
     if not files:
         raise HTTPException(400, "No files provided")
     file_data = []

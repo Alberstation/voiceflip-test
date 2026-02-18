@@ -25,13 +25,13 @@ def _is_payment_required_or_retryable(exc: Exception) -> bool:
     )
 
 
-def _make_hf_llm(repo_id: str) -> ChatHuggingFace:
+def _make_hf_llm(repo_id: str, max_new_tokens: int | None = None) -> ChatHuggingFace:
     """Build a single ChatHuggingFace for the given repo_id."""
     endpoint = HuggingFaceEndpoint(
         repo_id=repo_id,
         task="text-generation",
         huggingfacehub_api_token=settings.huggingfacehub_api_token or None,
-        max_new_tokens=settings.llm_max_new_tokens,
+        max_new_tokens=max_new_tokens if max_new_tokens is not None else settings.llm_max_new_tokens,
         temperature=settings.llm_temperature,
         top_p=settings.llm_top_p,
     )
@@ -97,8 +97,12 @@ class FallbackChatModel(BaseChatModel):
         return self.llms[0]._stream(*args, **kwargs)
 
 
-def get_llm() -> BaseChatModel:
-    """Return a chat model with primary + up to two fallbacks on 402/quota errors."""
+def get_llm(model: str | None = None, max_new_tokens: int | None = None) -> BaseChatModel:
+    """Return a chat model with primary + up to two fallbacks on 402/quota errors.
+    If model is provided, use only that model (no fallbacks).
+    max_new_tokens: override for eval LLM (RAGAS needs longer output)."""
+    if model and model.strip():
+        return _make_hf_llm(model.strip(), max_new_tokens=max_new_tokens)
     model_ids = _llm_model_ids()
     llms = [_make_hf_llm(repo_id) for repo_id in model_ids]
     if len(llms) == 1:
