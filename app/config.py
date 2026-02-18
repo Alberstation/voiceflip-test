@@ -42,8 +42,9 @@ class Settings(BaseSettings):
     retrieval_mmr_k: int = 6
     retrieval_mmr_lambda: float = 0.7
 
-    # LLM
+    # LLM — primary model; fallbacks used on 402 / Payment Required (free-tier models)
     llm_model: str = "Qwen/Qwen2.5-1.5B-Instruct"
+    llm_fallback_models: str = "mistralai/Mistral-7B-Instruct-v0.2,HuggingFaceH4/zephyr-7b-beta"
     llm_max_new_tokens: int = 350
     llm_temperature: float = 0.2
     llm_top_p: float = 0.9

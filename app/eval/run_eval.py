@@ -77,20 +77,13 @@ def run_evaluation(questions_path: Path, report_path: Path | None = None) -> dic
         except ImportError as e:
             raise RuntimeError("RAGAS not installed. pip install ragas") from e
 
-    from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
     from langchain_huggingface import HuggingFaceEndpointEmbeddings
     from ragas.llms import LangchainLLMWrapper
     from ragas.embeddings import LangchainEmbeddingsWrapper
 
-    llm = HuggingFaceEndpoint(
-        repo_id=settings.llm_model,
-        task="text-generation",
-        huggingfacehub_api_token=settings.huggingfacehub_api_token or None,
-        max_new_tokens=settings.llm_max_new_tokens,
-        temperature=settings.llm_temperature,
-        top_p=settings.llm_top_p,
-    )
-    chat_llm = ChatHuggingFace(llm=llm)
+    from app.llm import get_llm
+
+    chat_llm = get_llm()
     embeddings = HuggingFaceEndpointEmbeddings(
         model=settings.embedding_model,
         huggingfacehub_api_token=settings.huggingfacehub_api_token or None,

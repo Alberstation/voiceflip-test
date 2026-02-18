@@ -16,7 +16,9 @@ Copy `.env.example` to `.env` and set values as needed. All parameters are docum
 
 | Variable | Required for | Description |
 |----------|--------------|-------------|
-| `HUGGINGFACEHUB_API_TOKEN` | **app** (RAG/agent) | [Hugging Face token](https://huggingface.co/settings/tokens) for embeddings and LLM |
+| `HUGGINGFACEHUB_API_TOKEN` | **app** (RAG/agent) | [Hugging Face token](https://huggingface.co/settings/tokens) for embeddings and LLM. If you see **402 Payment Required**, the free tier limit may be reached — check [billing](https://huggingface.co/settings/billing); the app will automatically try fallback models. |
+| `LLM_MODEL` | **app** (optional) | Primary chat model (default: `Qwen/Qwen2.5-1.5B-Instruct`). On 402, the app tries fallbacks. |
+| `LLM_FALLBACK_MODELS` | **app** (optional) | Comma-separated fallback models (default: `mistralai/Mistral-7B-Instruct-v0.2,HuggingFaceH4/zephyr-7b-beta`). Used when the primary returns 402. |
 | `OPENCLAW_GATEWAY_TOKEN` | OpenClaw (optional) | Gateway token from OpenClaw setup |
 | `OPENCLAW_GATEWAY_URL` | **app** (OpenClaw tab) | e.g. `http://openclaw-gateway:18789` when OpenClaw runs in Docker |
 | `OPENCLAW_CONFIG_DIR` | OpenClaw | Default `./.openclaw-config` (created automatically by init-dirs) |

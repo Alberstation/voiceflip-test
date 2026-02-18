@@ -52,6 +52,8 @@ def run_eval(file: UploadFile | None = File(None)):
             raise HTTPException(500, "Failed to save uploaded file") from e
         try:
             report = run_evaluation(question_path, report_path=EVAL_REPORT_PATH)
+        except Exception as e:
+            _handle_eval_error(e)
         finally:
             question_path.unlink(missing_ok=True)
     else:
@@ -62,6 +64,21 @@ def run_eval(file: UploadFile | None = File(None)):
                 "Upload a PDF/DOCX or mount question_list.pdf at /app/question_list.pdf",
             )
         question_path = DEFAULT_QUESTION_PATH
-        report = run_evaluation(question_path, report_path=EVAL_REPORT_PATH)
+        try:
+            report = run_evaluation(question_path, report_path=EVAL_REPORT_PATH)
+        except Exception as e:
+            _handle_eval_error(e)
 
     return report
+
+
+def _handle_eval_error(e: Exception) -> None:
+    """Re-raise as HTTPException with 402 for Payment Required, else 500."""
+    logger.error("eval_run_failed", error=str(e))
+    msg = str(e).lower()
+    if "402" in msg or "payment required" in msg:
+        raise HTTPException(
+            402,
+            "Hugging Face returned Payment Required (402). Free tier limit may be reached or this model requires billing. Check https://huggingface.co/settings/billing or set LLM_MODEL to a different model.",
+        ) from e
+    raise HTTPException(500, str(e)) from e

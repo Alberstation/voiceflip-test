@@ -19,9 +19,9 @@ services:
       - QDRANT_PORT=6333
       # Phase 2: from .env (Compose loads project .env for substitution)
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN:-}
-      # Phase 6: optional OpenClaw proxy (frontend "Send to OpenClaw")
-      - OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL:-}
-      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
+      # Phase 6: optional OpenClaw proxy (frontend "Send to OpenClaw"). From app container use service name.
+      - OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL:-http://openclaw-gateway:18789}
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-dev-token}
     depends_on:
       vectordb:
         condition: service_healthy
@@ -74,7 +74,7 @@ services:
     environment:
       HOME: /home/node
       TERM: xterm-256color
-      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-dev-token}
       RAG_API_URL: http://app:8000
     volumes:
       - ${OPENCLAW_CONFIG_DIR:-./.openclaw-config}:/home/node/.openclaw
@@ -114,7 +114,7 @@ services:
     environment:
       HOME: /home/node
       TERM: xterm-256color
-      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-dev-token}
       BROWSER: echo
       RAG_API_URL: http://app:8000
     volumes:

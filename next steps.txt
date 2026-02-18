@@ -16,3 +16,5 @@ Documentation for all the endpoints
 
 explain table linearization
 
+run evaluation fron the question list precharged, but leave the option to run a new evaluation, and leave like "last evaluation results for the precharged one"
+
