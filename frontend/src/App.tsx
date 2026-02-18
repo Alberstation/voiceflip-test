@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { chat, retrieve, uploadDocuments, openclawSend, generateDocument, getEvalReport, runEval, getSystemHealth } from "./api";
 import type { ChatResponse, RetrieveResponse, DocumentsResponse, EvalReport, SystemHealthResponse } from "./api";
 import "./App.css";
-import voiceflipLogo from "./assets/images/voiceflip-logo.svg";
+import voiceflipLogo from "./assets/images/voiceflip-logo.png";
 
 const OPENCLAW_WEBCHAT_URL = import.meta.env.VITE_OPENCLAW_WEBCHAT_URL || "http://localhost:18789";
 
@@ -202,7 +202,6 @@ function App() {
     <div className="app">
       <header className="header">
         <img src={voiceflipLogo} alt="Voiceflip" className="header-logo" />
-        <h1>Voiceflip AI Engineer test</h1>
         <p className="subtitle">Chat, Upload Documents, Retrieve</p>
         <nav className="tabs">
           <button
