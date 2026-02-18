@@ -38,7 +38,9 @@ class Settings(BaseSettings):
     # Qdrant cosine distance: lower = more similar. Keep docs with distance <= this (0.8 = fairly permissive).
     retrieval_similarity_threshold: float = 0.8
     # Skip chunks shorter than this (chars) to avoid header/cover-only chunks ranking first. 0 = disabled.
-    retrieval_min_chunk_length: int = 80
+    retrieval_min_chunk_length: int = 120
+    # Skip chunks with fewer than this many words (filters cover/header-only chunks). 0 = disabled.
+    retrieval_min_chunk_words: int = 12
 
     # Retrieval — MMR
     retrieval_mmr_fetch_k: int = 20
@@ -72,6 +74,10 @@ class Settings(BaseSettings):
     eval_llm_max_new_tokens: int = 2048
     # Skip context_precision (its statement_generator has strict schema; often fails with RAGAS + HF models)
     eval_skip_context_precision: bool = False
+    # During eval: use unfiltered retrieval (no min chunk length/words) so short relevant chunks are kept; improves RAGAS metrics
+    eval_use_unfiltered_retrieval: bool = True
+    # During eval: use this many chunks per question (0 = use retrieval_top_k). Slightly higher can improve faithfulness.
+    eval_retrieval_top_k: int = 12
 
     # OpenClaw (Phase 6) — optional; for frontend "Send to OpenClaw"
     openclaw_gateway_url: str = ""

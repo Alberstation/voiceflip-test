@@ -71,5 +71,7 @@ docker compose run --rm -v ./question_list.pdf:/app/question_list.pdf -v ./eval_
 | `EVAL_REPORT_PATH` | Output JSON path. Default: `/app/eval_report.json` |
 | `EVAL_DEBUG` | Set to `1` or `true` to print sample Q/A/context previews to stderr |
 | `EVAL_LLM_MODEL` | Override LLM for RAGAS judge (e.g. `mistralai/Mistral-7B-Instruct-v0.2`). Small models (1.5B) produce unreliable scores. |
+| `EVAL_USE_UNFILTERED_RETRIEVAL` | If `true` (default), eval uses unfiltered retrieval (no min chunk length/words) so short relevant chunks are kept; improves Faithfulness and Context Precision. |
+| `EVAL_RETRIEVAL_TOP_K` | Number of chunks per question during eval (default `12`). Set to `0` to use `RETRIEVAL_TOP_K`. Slightly higher k can improve metrics. |
 
 Report will be at `./eval_output/eval_report.json` when using the mount above.

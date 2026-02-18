@@ -23,17 +23,21 @@ EVAL_DEBUG = os.environ.get("EVAL_DEBUG", "").lower() in ("1", "true", "yes")
 
 
 def run_rag_for_eval(questions: list[dict]) -> tuple[list[dict], list[float]]:
-    """Run RAG for each question; return samples with answer, contexts, latency per query."""
+    """Run RAG for each question; return samples with answer, contexts, latency per query.
+    Uses eval_mode=True so retrieval is unfiltered (no min chunk length/words) and eval_retrieval_top_k
+    for better RAGAS metrics (more relevant short chunks, more context per question).
+    """
     store = get_vector_store()
+    eval_mode = getattr(settings, "eval_use_unfiltered_retrieval", True)
     samples: list[dict] = []
     latencies: list[float] = []
     for qa in questions:
         q = qa["question"]
         gt = qa.get("ground_truth", "")
         t0 = time.perf_counter()
-        docs, scores, _ = retrieval_with_scores(store, q, technique="top_k")
+        docs, scores, _ = retrieval_with_scores(store, q, technique="top_k", eval_mode=eval_mode)
         contexts = [d.page_content for d in docs]
-        out = query_rag(q, retrieval_technique="top_k")
+        out = query_rag(q, retrieval_technique="top_k", eval_mode=eval_mode)
         answer = out["answer"]
         t1 = time.perf_counter()
         latencies.append(t1 - t0)

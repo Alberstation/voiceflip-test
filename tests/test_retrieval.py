@@ -5,7 +5,7 @@ Run inside container: docker compose run --rm app pytest tests/test_retrieval.py
 import pytest
 from langchain_core.documents import Document
 
-from app.retrieval import _dedupe_by_doc_span_chunk, _filter_by_min_length
+from app.retrieval import _dedupe_by_doc_span_chunk, _filter_by_min_length, _filter_by_min_words
 
 
 def test_dedupe_by_doc_span_chunk_same_page_same_chunk_index():
@@ -44,3 +44,19 @@ def test_filter_by_min_length():
     assert out[0].page_content == d_long.page_content
     out_disabled = _filter_by_min_length([d_short, d_long], min_length=0)
     assert len(out_disabled) == 2
+
+
+def test_filter_by_min_words_rejects_cover_like():
+    """Cover-like chunk (few words) is rejected by min-words filter."""
+    cover_chunk = Document(
+        page_content="RESOURCES FOR RURAL VETERANS\n\n\nHousing Assistance Council\nNovember, 2014",
+        metadata={"doc_id": "test", "page_or_para": 1},
+    )
+    substantive = Document(
+        page_content="Veterans may qualify for housing assistance through the VA and other programs. Contact your local office for eligibility.",
+        metadata={},
+    )
+    out = _filter_by_min_words([cover_chunk, substantive], min_words=12)
+    assert len(out) == 1
+    assert out[0].page_content == substantive.page_content
+    assert len(cover_chunk.page_content.split()) < 12

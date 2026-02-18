@@ -33,14 +33,17 @@ def build_citations(docs: list[Document]) -> list[dict]:
     ]
 
 
-def query_rag(question: str, retrieval_technique: str = "top_k") -> dict:
+def query_rag(question: str, retrieval_technique: str = "top_k", *, eval_mode: bool = False) -> dict:
     """
     Run RAG: retrieve, then generate answer with citations.
     retrieval_technique: "top_k" or "mmr"
+    eval_mode: if True, retrieval uses unfiltered chunks and eval_retrieval_top_k (for evaluation runs).
     Returns dict with keys: answer, citations, below_threshold, context_used.
     """
     store = get_vector_store()
-    docs, scores, below_threshold = retrieval_with_scores(store, question, technique=retrieval_technique)
+    docs, scores, below_threshold = retrieval_with_scores(
+        store, question, technique=retrieval_technique, eval_mode=eval_mode
+    )
 
     if below_threshold or not docs:
         return {
