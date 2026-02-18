@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
-import { chat, retrieve, uploadDocuments, openclawSend, generateDocument, getEvalReport, runEval } from "./api";
-import type { ChatResponse, RetrieveResponse, DocumentsResponse, EvalReport } from "./api";
+import { chat, retrieve, uploadDocuments, openclawSend, generateDocument, getEvalReport, runEval, getSystemHealth } from "./api";
+import type { ChatResponse, RetrieveResponse, DocumentsResponse, EvalReport, SystemHealthResponse } from "./api";
 import "./App.css";
 import voiceflipLogo from "./assets/images/voiceflip-logo.svg";
 
@@ -36,7 +36,9 @@ function App() {
   const [docFormat, setDocFormat] = useState<"docx" | "pdf">("docx");
   const [docGenerated, setDocGenerated] = useState(false);
 
-  // RAGAS Evaluation dashboard
+  // System Metrics Dashboard (RAGAS + health)
+  const [systemHealth, setSystemHealth] = useState<SystemHealthResponse | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
   const [evalReport, setEvalReport] = useState<EvalReport | null>(null);
   const [evalLoading, setEvalLoading] = useState(false);
   const [evalRunLoading, setEvalRunLoading] = useState(false);
@@ -137,6 +139,18 @@ function App() {
     }
   };
 
+  const loadSystemHealth = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const data = await getSystemHealth();
+      setSystemHealth(data);
+    } catch {
+      setSystemHealth(null);
+    } finally {
+      setHealthLoading(false);
+    }
+  }, []);
+
   const loadEvalReport = useCallback(async () => {
     setError(null);
     setEvalLoading(true);
@@ -232,10 +246,13 @@ function App() {
             onClick={() => {
               setActiveTab("eval");
               clearError();
-              if (activeTab !== "eval") loadEvalReport();
+              if (activeTab !== "eval") {
+                loadSystemHealth();
+                loadEvalReport();
+              }
             }}
           >
-            RAGAS Dashboard
+            System Metrics Dashboard
           </button>
         </nav>
       </header>
@@ -472,7 +489,41 @@ function App() {
 
         {activeTab === "eval" && (
           <section className="panel eval-panel">
-            <h2 className="panel-title">RAGAS Evaluation Dashboard</h2>
+            <h2 className="panel-title">System Metrics Dashboard</h2>
+
+            <h3 className="system-metrics-section-title">Service health</h3>
+            <div className="health-actions">
+              <button
+                type="button"
+                onClick={loadSystemHealth}
+                disabled={healthLoading}
+              >
+                {healthLoading ? "Checking…" : "Refresh health"}
+              </button>
+            </div>
+            {healthLoading && !systemHealth ? (
+              <p className="hint">Checking services…</p>
+            ) : systemHealth ? (
+              <div className="health-services">
+                {(["api", "vectordb", "openclaw_gateway"] as const).map((key) => {
+                  const s = systemHealth.services[key];
+                  const label = key === "api" ? "API" : key === "vectordb" ? "Vector DB (Qdrant)" : "OpenClaw Gateway";
+                  const status = s.status === "ok" ? "ok" : s.status === "unconfigured" ? "unconfigured" : "error";
+                  const message = "message" in s ? s.message : null;
+                  return (
+                    <div key={key} className={`health-card health-card--${status}`}>
+                      <span className="health-card__label">{label}</span>
+                      <span className="health-card__status">{status}</span>
+                      {message && <span className="health-card__message">{message}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="hint">Could not load service health. Ensure the API is running.</p>
+            )}
+
+            <h3 className="system-metrics-section-title">RAGAS evaluation metrics</h3>
             <p className="hint">
               Metrics: Faithfulness, Answer Relevancy, Context Precision, Context Recall, Hallucination Score, Latency. Use <strong>question_list.pdf</strong> (or upload one) with ≥15 questions.
             </p>

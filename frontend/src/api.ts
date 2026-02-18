@@ -101,6 +101,22 @@ export async function health(): Promise<{ status: string }> {
   return handleResponse<{ status: string }>(res);
 }
 
+/** Service health entry for System Metrics Dashboard. */
+export type ServiceHealth = { status: "ok" } | { status: "unconfigured" } | { status: "error"; message: string };
+
+export type SystemHealthResponse = {
+  services: {
+    api: ServiceHealth;
+    vectordb: ServiceHealth;
+    openclaw_gateway: ServiceHealth;
+  };
+};
+
+export async function getSystemHealth(): Promise<SystemHealthResponse> {
+  const res = await fetch(`${API_BASE}/health/services`);
+  return handleResponse<SystemHealthResponse>(res);
+}
+
 export type OpenClawSendResponse = { ok: boolean; result?: unknown; error?: string };
 
 export async function openclawSend(message: string): Promise<OpenClawSendResponse> {
