@@ -277,6 +277,8 @@ curl -X POST http://localhost:8000/retrieve \
   -d '{"query": "homebuyer tax credits", "technique": "top_k"}'
 ```
 
+**Chat vs Retrieval:** The **Retrieval** API returns raw documents (same retrieval as the agent). The **Chat** tab runs the same retrieval and then asks the LLM to answer from that context. If Chat previously showed "Not enough context" while Retrieval returned many docs for the same question, the LLM was being overly conservative; the RAG prompt has been tuned so the model answers when the context clearly relates to the question (e.g. veteran benefits, housing) and reserves "Not enough context." for when the context does not address the question at all.
+
 ---
 
 ## Phase 4 — RAG System Evaluation (RAGAS)
