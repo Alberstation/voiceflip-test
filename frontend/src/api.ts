@@ -146,3 +146,35 @@ export async function generateDocument(
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/** RAGAS evaluation report (metrics + question count). */
+export type EvalReport = {
+  num_questions: number;
+  metrics: {
+    faithfulness?: number | string;
+    answer_relevancy?: number | string;
+    context_precision?: number | string;
+    context_recall?: number | string;
+    hallucination_score?: number | string;
+    latency_avg_seconds?: number;
+    latency_max_seconds?: number;
+  };
+  tool?: string;
+  llm_judge?: string;
+};
+
+export async function getEvalReport(): Promise<EvalReport> {
+  const res = await fetch(`${API_BASE}/eval/report`);
+  return handleResponse<EvalReport>(res);
+}
+
+/** Run RAGAS evaluation. Optionally pass a question list file (PDF or DOCX). Takes several minutes. */
+export async function runEval(file?: File): Promise<EvalReport> {
+  const formData = new FormData();
+  if (file) formData.append("file", file);
+  const res = await fetch(`${API_BASE}/eval/run`, {
+    method: "POST",
+    body: formData,
+  });
+  return handleResponse<EvalReport>(res);
+}

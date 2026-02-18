@@ -1,12 +1,12 @@
 import { useState, useCallback } from "react";
-import { chat, retrieve, uploadDocuments, openclawSend, generateDocument } from "./api";
-import type { ChatResponse, RetrieveResponse, DocumentsResponse } from "./api";
+import { chat, retrieve, uploadDocuments, openclawSend, generateDocument, getEvalReport, runEval } from "./api";
+import type { ChatResponse, RetrieveResponse, DocumentsResponse, EvalReport } from "./api";
 import "./App.css";
 import voiceflipLogo from "./assets/images/voiceflip-logo.svg";
 
 const OPENCLAW_WEBCHAT_URL = import.meta.env.VITE_OPENCLAW_WEBCHAT_URL || "http://localhost:18789";
 
-type TabId = "chat" | "upload" | "retrieve" | "openclaw";
+type TabId = "chat" | "upload" | "retrieve" | "openclaw" | "eval";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -36,7 +36,19 @@ function App() {
   const [docFormat, setDocFormat] = useState<"docx" | "pdf">("docx");
   const [docGenerated, setDocGenerated] = useState(false);
 
+  // RAGAS Evaluation dashboard
+  const [evalReport, setEvalReport] = useState<EvalReport | null>(null);
+  const [evalLoading, setEvalLoading] = useState(false);
+  const [evalRunLoading, setEvalRunLoading] = useState(false);
+  const [evalFile, setEvalFile] = useState<File | null>(null);
+
   const clearError = useCallback(() => setError(null), []);
+
+  const formatMetric = (v: number | string | undefined): string => {
+    if (v == null) return "—";
+    if (typeof v === "number") return v.toFixed(4);
+    return String(v);
+  };
 
   const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,6 +137,35 @@ function App() {
     }
   };
 
+  const loadEvalReport = useCallback(async () => {
+    setError(null);
+    setEvalLoading(true);
+    try {
+      const report = await getEvalReport();
+      setEvalReport(report);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load report");
+      setEvalReport(null);
+    } finally {
+      setEvalLoading(false);
+    }
+  }, []);
+
+  const handleRunEval = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setEvalRunLoading(true);
+    try {
+      const report = await runEval(evalFile ?? undefined);
+      setEvalReport(report);
+      setEvalFile(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Evaluation failed");
+    } finally {
+      setEvalRunLoading(false);
+    }
+  };
+
   const handleGenerateDocument = async (e: React.FormEvent) => {
     e.preventDefault();
     const title = docTitle.trim() || "Research Document";
@@ -185,6 +226,16 @@ function App() {
             }}
           >
             OpenClaw
+          </button>
+          <button
+            className={activeTab === "eval" ? "active" : ""}
+            onClick={() => {
+              setActiveTab("eval");
+              clearError();
+              if (activeTab !== "eval") loadEvalReport();
+            }}
+          >
+            RAGAS Dashboard
           </button>
         </nav>
       </header>
@@ -415,6 +466,77 @@ function App() {
               <div className="result-box success">
                 Document downloaded. To add it to the RAG context, go to <button type="button" className="link-button" onClick={() => { setActiveTab("upload"); clearError(); }}>Upload Documents</button> and upload the file (DOCX is supported for ingestion).
               </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === "eval" && (
+          <section className="panel eval-panel">
+            <h2 className="panel-title">RAGAS Evaluation Dashboard</h2>
+            <p className="hint">
+              Metrics: Faithfulness, Answer Relevancy, Context Precision, Context Recall, Hallucination Score, Latency. Use <strong>question_list.pdf</strong> (or upload one) with ≥15 questions.
+            </p>
+            <div className="eval-actions">
+              <button
+                type="button"
+                onClick={loadEvalReport}
+                disabled={evalLoading}
+              >
+                {evalLoading ? "Loading…" : "Load last report"}
+              </button>
+              <form onSubmit={handleRunEval} className="eval-run-form">
+                <label className="file-label">
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.doc"
+                    onChange={(e) => setEvalFile(e.target.files?.[0] ?? null)}
+                  />
+                  {evalFile ? evalFile.name : "Choose question list (PDF/DOCX)"}
+                </label>
+                <button type="submit" disabled={evalRunLoading}>
+                  {evalRunLoading ? "Running evaluation…" : "Run evaluation"}
+                </button>
+              </form>
+            </div>
+            {evalReport && (
+              <div className="eval-dashboard">
+                <div className="eval-summary">
+                  <strong>Questions used:</strong> {evalReport.num_questions}
+                </div>
+                <div className="eval-metrics">
+                  <div className="metric-card">
+                    <span className="metric-label">Faithfulness</span>
+                    <span className="metric-value">{formatMetric(evalReport.metrics.faithfulness)}</span>
+                  </div>
+                  <div className="metric-card">
+                    <span className="metric-label">Answer Relevancy</span>
+                    <span className="metric-value">{formatMetric(evalReport.metrics.answer_relevancy)}</span>
+                  </div>
+                  <div className="metric-card">
+                    <span className="metric-label">Context Precision</span>
+                    <span className="metric-value">{formatMetric(evalReport.metrics.context_precision)}</span>
+                  </div>
+                  <div className="metric-card">
+                    <span className="metric-label">Context Recall</span>
+                    <span className="metric-value">{formatMetric(evalReport.metrics.context_recall)}</span>
+                  </div>
+                  <div className="metric-card">
+                    <span className="metric-label">Hallucination Score</span>
+                    <span className="metric-value">{formatMetric(evalReport.metrics.hallucination_score)}</span>
+                  </div>
+                  <div className="metric-card">
+                    <span className="metric-label">Latency (avg)</span>
+                    <span className="metric-value">{evalReport.metrics.latency_avg_seconds != null ? `${evalReport.metrics.latency_avg_seconds}s` : "—"}</span>
+                  </div>
+                  <div className="metric-card">
+                    <span className="metric-label">Latency (max)</span>
+                    <span className="metric-value">{evalReport.metrics.latency_max_seconds != null ? `${evalReport.metrics.latency_max_seconds}s` : "—"}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {activeTab === "eval" && !evalReport && !evalLoading && !evalRunLoading && (
+              <p className="hint">Load a saved report or run an evaluation to see metrics.</p>
             )}
           </section>
         )}
