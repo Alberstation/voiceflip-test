@@ -19,16 +19,17 @@ Copy `.env.example` to `.env` and set values as needed. All parameters are docum
 | `HUGGINGFACEHUB_API_TOKEN` | **app** (RAG/agent) | [Hugging Face token](https://huggingface.co/settings/tokens) for embeddings and LLM. If you see **402 Payment Required**, the free tier limit may be reached — check [billing](https://huggingface.co/settings/billing); the app will automatically try fallback models. |
 | `LLM_MODEL` | **app** (optional) | Primary chat model (default: `Qwen/Qwen2.5-1.5B-Instruct`). On 402, the app tries fallbacks. |
 | `LLM_FALLBACK_MODELS` | **app** (optional) | Comma-separated fallback models (default: `mistralai/Mistral-7B-Instruct-v0.2,HuggingFaceH4/zephyr-7b-beta`). Used when the primary returns 402. |
+| `EVAL_MAX_QUESTIONS` | **app** (optional) | Max questions used per RAGAS run (default: `20`). Lower = fewer tokens; helps stay within Hugging Face free tier. File must have ≥15 questions. |
 | `OPENCLAW_GATEWAY_TOKEN` | OpenClaw (optional) | Gateway token from OpenClaw setup |
 | `OPENCLAW_GATEWAY_URL` | **app** (OpenClaw tab) | e.g. `http://openclaw-gateway:18789` when OpenClaw runs in Docker |
-| `OPENCLAW_CONFIG_DIR` | OpenClaw | Default `./.openclaw-config` (created automatically by init-dirs) |
-| `OPENCLAW_WORKSPACE_DIR` | OpenClaw | Default `./.openclaw-workspace` (created automatically by init-dirs) |
+| `OPENCLAW_CONFIG_DIR` | OpenClaw | Default `./openclaw-config` (created by init-dirs; no leading dot to avoid Windows path quirks) |
+| `OPENCLAW_WORKSPACE_DIR` | OpenClaw | Default `./openclaw-workspace` (created by init-dirs) |
 | `OPENCLAW_GATEWAY_PORT` | OpenClaw | Default `18789` |
 
 ```bash
 cp .env.example .env
 # At minimum set HUGGINGFACEHUB_API_TOKEN
-# For OpenClaw tab + WebChat set OPENCLAW_GATEWAY_TOKEN and OPENCLAW_GATEWAY_URL
+# For OpenClaw tab set OPENCLAW_GATEWAY_TOKEN and OPENCLAW_GATEWAY_URL
 ```
 
 ---
@@ -39,7 +40,7 @@ cp .env.example .env
 
 | Service | Port(s) | Description |
 |---------|---------|-------------|
-| **init-dirs** | — | One-off: creates `.openclaw-config`, `.openclaw-workspace`, `docs/` on the host, then exits. |
+| **init-dirs** | — | One-off: creates `openclaw-config`, `openclaw-workspace`, `docs/` on the host, then exits. |
 | **vectordb** | 6333, 6334 | Qdrant vector database. |
 | **app** | 8000 | FastAPI: RAG, chat, documents, retrieval, OpenClaw proxy, eval API. |
 | **frontend** | 5173 | React UI (Chat, Upload, Retrieval, OpenClaw, RAGAS Dashboard). |
@@ -81,7 +82,7 @@ A single command starts the full stack: **app**, **vectordb**, **frontend**, and
    docker compose up --build -d
    ```
 
-   This starts: **init-dirs** (creates `.openclaw-config`, `.openclaw-workspace`, `docs/` on the host, then exits), **vectordb**, **app**, **frontend**, and **openclaw-gateway**. **OpenClaw starts automatically** with the rest of the stack.
+   This starts: **init-dirs** (creates `openclaw-config`, `openclaw-workspace`, `docs/` on the host, then exits), **vectordb**, **app**, **frontend**, and **openclaw-gateway**. **OpenClaw starts automatically** with the rest of the stack.
 
 4. **First-time OpenClaw only** — run onboarding once (model, channels)
 
@@ -98,7 +99,7 @@ A single command starts the full stack: **app**, **vectordb**, **frontend**, and
    | Frontend | http://localhost:5173 |
    | API | http://localhost:8000 |
    | OpenAPI docs | http://localhost:8000/docs |
-   | OpenClaw WebChat | http://localhost:18789 |  
+   | OpenClaw gateway | http://localhost:18789 |  
 
 ---
 
@@ -141,9 +142,18 @@ cd frontend && npm install && npm run dev
 
 OpenClaw is part of the main stack. **It starts automatically** with `docker compose up --build -d`; you do **not** need a different compose file or another `up` command.
 
-**Flow**: Ask OpenClaw for US housing research (e.g. in WebChat or via the frontend “Send to OpenClaw”) → copy the reply → in the frontend OpenClaw tab paste the text and **Generate document** (PDF or DOCX) → download → in **Upload Documents** upload the file to add it to the RAG context (DOCX supported for ingestion).
+**Flow**: Ask OpenClaw for US housing research (via the frontend “Send to OpenClaw”) → copy the reply → in the frontend OpenClaw tab paste the text and **Generate document** (PDF or DOCX) → download → in **Upload Documents** upload the file to add it to the RAG context (DOCX supported for ingestion).
 
-**First-time setup**: Set in `.env`: `OPENCLAW_GATEWAY_TOKEN`, `OPENCLAW_GATEWAY_URL`. Start the stack with `docker compose up -d`. Then run onboarding once: `docker compose --profile tools run --rm openclaw-cli onboard`. OpenClaw WebChat: http://localhost:18789
+**Setup (no pairing required)** — the gateway is pre-configured for token-only auth:
+
+1. Start the stack: `docker compose up -d`
+2. Run onboarding once (enter your Hugging Face token, pick a model): `docker compose --profile tools run --rm openclaw-cli onboard`
+3. Use "Send to OpenClaw" in the frontend OpenClaw tab
+
+Default gateway token is `dev-token`; set `OPENCLAW_GATEWAY_TOKEN` in `.env` if you change it. Ensure `HUGGINGFACEHUB_API_TOKEN` is set in `.env` — it is passed to OpenClaw for model calls (avoids "unauthorized" when searching).
+
+**Troubleshooting** — if OpenClaw returns unauthorized or pairing errors: 
+Run: `docker compose down`, remove `openclaw-config` (PowerShell: `Remove-Item -Recurse -Force openclaw-config -ErrorAction SilentlyContinue`; Bash: `rm -rf openclaw-config`), run `docker compose up -d`, then run onboarding again.
 
 Full details: [OPENCLAW.md](OPENCLAW.md).
 
@@ -231,6 +241,8 @@ curl -X POST http://localhost:8000/retrieve \
 
 Use **question_list.pdf** (or DOCX) with ≥15 questions — one question per paragraph. Optional Q/A pairs with "Q:" / "A:" for context recall. Default path in the app: `/app/question_list.pdf`.
 
+**402 Payment Required during eval?** Evaluation uses many LLM calls (RAG + RAGAS metrics), so it can exceed the Hugging Face free tier. Use **EVAL_MAX_QUESTIONS=20** (default) or lower to cap; add pre-paid credits at [huggingface.co/settings/billing](https://huggingface.co/settings/billing) if needed.
+
 ### Run evaluation (CLI)
 
 ```bash
@@ -259,7 +271,7 @@ In the frontend, open the **RAGAS Dashboard** tab. You can **Load last report** 
 | **Chat** | LangGraph agent (RAG, relevance, web search). Session-based memory. |
 | **Upload Documents** | Add DOCX/HTML to the RAG vector store. |
 | **Retrieval** | Query vector store with **top_k** or **MMR**. |
-| **OpenClaw** | OpenClaw WebChat link, Send to OpenClaw, and Generate document from research text (PDF/DOCX). |
+| **OpenClaw** | Send to OpenClaw and Generate document from research text (PDF/DOCX). |
 | **RAGAS Dashboard** | Evaluation metrics (Faithfulness, Answer Relevancy, Context Precision, Context Recall, Hallucination Score, Latency) and question count. Load last report or run evaluation (upload question list PDF/DOCX). |
 
 ---

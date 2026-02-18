@@ -27,13 +27,11 @@ def retrieval_similarity_top_k(
     vector_store: VectorStore,
     query: str,
 ) -> list[Document]:
-    """Public API: Top-k with config params and dedupe."""
+    """Public API: Top-k with config params and dedupe. Returns top-k by similarity (no score filter)."""
     k = settings.retrieval_top_k
-    threshold = settings.retrieval_similarity_threshold
-    raw = vector_store.similarity_search_with_score(query, k=k * 3)
-    scored = [(doc, score) for doc, score in raw if score >= threshold]
-    scored.sort(key=lambda x: -x[1])
-    docs = [doc for doc, _ in scored]
+    raw = vector_store.similarity_search_with_score(query, k=k * 5)
+    # Raw results are already ordered by relevance; dedupe and take top k
+    docs = [doc for doc, _ in raw]
     deduped = _dedupe_by_doc_and_span(docs)
     return deduped[:k]
 
@@ -62,17 +60,15 @@ def retrieval_with_scores(
 ) -> tuple[list[Document], list[float], bool]:
     """
     Run retrieval; return (documents, scores, below_threshold).
-    below_threshold=True when all scores < similarity_threshold (triggers "no evidence" response).
+    below_threshold=True when no documents retrieved.
     """
-    threshold = settings.retrieval_similarity_threshold
     if technique == "mmr":
         docs = retrieval_mmr(vector_store, query)
         scores = [1.0] * len(docs) if docs else []
-        below = not docs
     else:
         docs = retrieval_similarity_top_k(vector_store, query)
-        raw = vector_store.similarity_search_with_score(query, k=settings.retrieval_top_k * 2)
+        raw = vector_store.similarity_search_with_score(query, k=settings.retrieval_top_k * 3)
         score_map = {id(d): s for d, s in raw}
         scores = [score_map.get(id(d), 0.0) for d in docs]
-        below = all(s < threshold for s in scores) if scores else True
+    below = not docs
     return docs, scores, below

@@ -31,10 +31,14 @@ def get_eval_report():
 
 
 @router.post("/eval/run")
-def run_eval(file: UploadFile | None = File(None)):
+def run_eval(
+    file: UploadFile | None = File(None),
+    max_questions: int | None = None,
+):
     """
     Run RAGAS evaluation. Optionally upload a question list (PDF or DOCX).
     If no file is provided, uses the default path (e.g. /app/question_list.pdf).
+    max_questions: cap how many questions to use (reduces tokens / helps stay within HF free tier). Default from EVAL_MAX_QUESTIONS (20).
     Returns the evaluation report (metrics, question count). May take several minutes.
     """
     question_path: Path
@@ -51,7 +55,7 @@ def run_eval(file: UploadFile | None = File(None)):
         except Exception as e:
             raise HTTPException(500, "Failed to save uploaded file") from e
         try:
-            report = run_evaluation(question_path, report_path=EVAL_REPORT_PATH)
+            report = run_evaluation(question_path, report_path=EVAL_REPORT_PATH, max_questions=max_questions)
         except Exception as e:
             _handle_eval_error(e)
         finally:
@@ -65,7 +69,7 @@ def run_eval(file: UploadFile | None = File(None)):
             )
         question_path = DEFAULT_QUESTION_PATH
         try:
-            report = run_evaluation(question_path, report_path=EVAL_REPORT_PATH)
+            report = run_evaluation(question_path, report_path=EVAL_REPORT_PATH, max_questions=max_questions)
         except Exception as e:
             _handle_eval_error(e)
 
@@ -79,6 +83,6 @@ def _handle_eval_error(e: Exception) -> None:
     if "402" in msg or "payment required" in msg:
         raise HTTPException(
             402,
-            "Hugging Face returned Payment Required (402). Free tier limit may be reached or this model requires billing. Check https://huggingface.co/settings/billing or set LLM_MODEL to a different model.",
+            "Hugging Face returned Payment Required (402). Free tier limit may be reached. Try reducing EVAL_MAX_QUESTIONS (default 20) or add credits at https://huggingface.co/settings/billing.",
         ) from e
     raise HTTPException(500, str(e)) from e

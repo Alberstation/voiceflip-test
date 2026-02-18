@@ -63,7 +63,10 @@ node_modules/
 frontend/node_modules/
 frontend/dist/
 
-# OpenClaw (Phase 6) local config/workspace
+# OpenClaw (Phase 6) local config/workspace (no leading dot = fewer Windows path quirks)
+openclaw-config/
+openclaw-workspace/
+# Legacy dot-prefix names
 .openclaw-config/
 .openclaw-workspace/
 

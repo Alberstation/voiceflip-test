@@ -34,8 +34,9 @@ class Settings(BaseSettings):
     embedding_retries: int = 1
 
     # Retrieval — Similarity Top-k
-    retrieval_top_k: int = 5
-    retrieval_similarity_threshold: float = 0.25
+    retrieval_top_k: int = 8
+    # Qdrant cosine distance: lower = more similar. Keep docs with distance <= this (0.8 = fairly permissive).
+    retrieval_similarity_threshold: float = 0.8
 
     # Retrieval — MMR
     retrieval_mmr_fetch_k: int = 20
@@ -60,6 +61,9 @@ class Settings(BaseSettings):
 
     # Optional
     log_level: str = "INFO"
+
+    # Eval — cap questions to reduce token usage and stay within HF free tier
+    eval_max_questions: int = 20
 
     # OpenClaw (Phase 6) — optional; for frontend "Send to OpenClaw"
     openclaw_gateway_url: str = ""

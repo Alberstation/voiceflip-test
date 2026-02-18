@@ -45,16 +45,28 @@ def run_rag_for_eval(questions: list[dict]) -> tuple[list[dict], list[float]]:
     return samples, latencies
 
 
-def run_evaluation(questions_path: Path, report_path: Path | None = None) -> dict:
+def run_evaluation(
+    questions_path: Path,
+    report_path: Path | None = None,
+    max_questions: int | None = None,
+) -> dict:
     """
     Run RAGAS evaluation on questions from the given path. Returns report dict.
     If report_path is set, also writes the report JSON to that file.
+    max_questions: cap on how many questions to use (reduces token usage / free-tier usage). Default from settings.eval_max_questions.
     """
-    questions = load_questions(questions_path)
-    if len(questions) < 1:
+    all_questions = load_questions(questions_path)
+    if len(all_questions) < 1:
         raise ValueError(f"No questions loaded from {questions_path}")
-    if len(questions) < 15:
-        raise ValueError(f"Need >= 15 questions for RAGAS; found {len(questions)}")
+    if len(all_questions) < 15:
+        raise ValueError(f"Need >= 15 questions for RAGAS; found {len(all_questions)}")
+
+    cap = max_questions if max_questions is not None else settings.eval_max_questions
+    cap = min(cap, len(all_questions))  # Use all questions up to cap (default 20)
+    questions = all_questions[:cap]
+    if cap < len(all_questions):
+        import structlog
+        structlog.get_logger().info("eval_capped_questions", total=len(all_questions), used=cap, reason="eval_max_questions / token limit")
 
     samples, latencies = run_rag_for_eval(questions)
 

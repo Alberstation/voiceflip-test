@@ -5,7 +5,7 @@ services:
     volumes:
       - .:/workspace
     working_dir: /workspace
-    command: sh -c "mkdir -p .openclaw-config .openclaw-workspace docs && echo Directories ready"
+    command: sh -c "mkdir -p openclaw-config openclaw-workspace docs && echo Directories ready"
     restart: "no"
 
   app:
@@ -69,6 +69,7 @@ services:
       start_period: 10s
 
   # OpenClaw (Phase 6) — starts with main stack; use for research → generate doc → upload to RAG
+  # Candidate-friendly: no pairing required (allowInsecureAuth merged at startup)
   openclaw-gateway:
     image: alpine/openclaw:main
     environment:
@@ -76,10 +77,14 @@ services:
       TERM: xterm-256color
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-dev-token}
       RAG_API_URL: http://app:8000
+      # OpenClaw uses HUGGINGFACE_HUB_TOKEN for model calls; pass project HF token for consistency
+      HUGGINGFACE_HUB_TOKEN: ${HUGGINGFACEHUB_API_TOKEN:-}
+      HF_TOKEN: ${HUGGINGFACEHUB_API_TOKEN:-}
     volumes:
-      - ${OPENCLAW_CONFIG_DIR:-./.openclaw-config}:/home/node/.openclaw
-      - ${OPENCLAW_WORKSPACE_DIR:-./.openclaw-workspace}:/home/node/.openclaw/workspace
+      - ${OPENCLAW_CONFIG_DIR:-./openclaw-config}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./openclaw-workspace}:/home/node/.openclaw/workspace
       - ./openclaw-skill-rag:/home/node/.openclaw/workspace/skills/rag-query:ro
+      - ./scripts:/workspace/scripts:ro
     ports:
       - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
       - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
@@ -99,14 +104,11 @@ services:
       retries: 3
       start_period: 20s
     command:
-      - node
-      - dist/index.js
-      - gateway
-      - --allow-unconfigured
-      - --bind
-      - "lan"
-      - --port
-      - "18789"
+      - sh
+      - -c
+      - |
+        node /workspace/scripts/openclaw-merge-config.js 2>/dev/null || true
+        exec node dist/index.js gateway --allow-unconfigured --bind lan --port 18789
 
   # One-off CLI for first-time onboarding: docker compose run --rm openclaw-cli onboard
   openclaw-cli:
@@ -114,12 +116,15 @@ services:
     environment:
       HOME: /home/node
       TERM: xterm-256color
+      OPENCLAW_GATEWAY_URL: ${OPENCLAW_GATEWAY_URL:-http://openclaw-gateway:18789}
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-dev-token}
       BROWSER: echo
       RAG_API_URL: http://app:8000
+      HUGGINGFACE_HUB_TOKEN: ${HUGGINGFACEHUB_API_TOKEN:-}
+      HF_TOKEN: ${HUGGINGFACEHUB_API_TOKEN:-}
     volumes:
-      - ${OPENCLAW_CONFIG_DIR:-./.openclaw-config}:/home/node/.openclaw
-      - ${OPENCLAW_WORKSPACE_DIR:-./.openclaw-workspace}:/home/node/.openclaw/workspace
+      - ${OPENCLAW_CONFIG_DIR:-./openclaw-config}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./openclaw-workspace}:/home/node/.openclaw/workspace
       - ./openclaw-skill-rag:/home/node/.openclaw/workspace/skills/rag-query:ro
     networks:
       - default

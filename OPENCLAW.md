@@ -2,6 +2,8 @@
 
 This document describes how the VoiceFlip RAG system is connected to [OpenClaw](https://openclaw.ai/) and how to reproduce the integration.
 
+> **Candidate evaluation**: No Browser Relay, Control UI, or pairing setup is required. Use "Send to OpenClaw" from the frontend after onboarding.
+
 ## Objective
 
 - Run OpenClaw using Docker (standalone from the main stack).
@@ -13,7 +15,7 @@ This document describes how the VoiceFlip RAG system is connected to [OpenClaw](
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  User (WebChat / Telegram / WhatsApp / …)                        │
+│  User (Frontend / Telegram / WhatsApp / …)                        │
 └───────────────────────────────┬─────────────────────────────────┘
                                 │
                                 ▼
@@ -82,7 +84,7 @@ This starts the API and Qdrant and creates the network `voiceflip-net` (see `doc
 OpenClaw is part of the main stack. Start everything with:
 
 ```bash
-mkdir -p .openclaw-config .openclaw-workspace
+mkdir -p openclaw-config openclaw-workspace
 docker compose up -d
 ```
 
@@ -100,7 +102,7 @@ After that, the gateway can use the RAG skill. For a **research → document →
 
 ### 3. Functional flow: instruction → RAG query → result
 
-1. Open OpenClaw WebChat (or any connected channel): **http://localhost:18789** (or the URL shown by the gateway).
+1. Use "Send to OpenClaw" from the frontend OpenClaw tab.
 2. Send a message that should trigger the RAG skill, for example:
    - “Use the RAG skill to answer: What tax credits exist for home buyers?”
    - “Query the document knowledge base: What are the main eligibility criteria?”
@@ -129,22 +131,9 @@ docker compose run --rm -v ./docs:/app/docs -v ./Real_Estate_RAG_Documents.xlsx:
 
    Restart the RAG app so it picks up the new env vars.
 
-2. **Allowlist `sessions_send`** in OpenClaw for HTTP Tools Invoke. In your OpenClaw config (e.g. under `~/.openclaw/openclaw.json` or the mounted config), add or adjust:
+2. **Tools allowlist** — `sessions_send` is merged into the config at gateway startup (see `scripts/openclaw-merge-config.js`). No manual config needed.
 
-   ```json5
-   {
-     gateway: {
-       tools: {
-         allow: ["sessions_send"],
-         deny: []   // or omit deny; default deny list includes sessions_send
-       }
-     }
-   }
-   ```
-
-   Then restart the OpenClaw gateway.
-
-3. Open the **React frontend** (e.g. http://localhost:5173), go to the **OpenClaw** tab, and use “Send to OpenClaw” with a message like: “Use the RAG skill to answer: What tax credits exist for home buyers?”. The reply will appear in OpenClaw (WebChat or your connected channel), not in the frontend.
+3. Open the **React frontend** (e.g. http://localhost:5173), go to the **OpenClaw** tab, and use “Send to OpenClaw” with a message like: “Use the RAG skill to answer: What tax credits exist for home buyers?”. The reply will appear in OpenClaw.
 
 ## Evidence of execution
 
@@ -168,6 +157,6 @@ docker compose run --rm -v ./docs:/app/docs -v ./Real_Estate_RAG_Documents.xlsx:
 Add to `.gitignore` so local OpenClaw config/workspace are not committed:
 
 ```
-.openclaw-config/
-.openclaw-workspace/
+openclaw-config/
+openclaw-workspace/
 ```

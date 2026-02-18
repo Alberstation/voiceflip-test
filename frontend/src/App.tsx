@@ -4,8 +4,6 @@ import type { ChatResponse, RetrieveResponse, DocumentsResponse, EvalReport, Sys
 import "./App.css";
 import voiceflipLogo from "./assets/images/voiceflip-logo.png";
 
-const OPENCLAW_WEBCHAT_URL = import.meta.env.VITE_OPENCLAW_WEBCHAT_URL || "http://localhost:18789";
-
 type TabId = "chat" | "upload" | "retrieve" | "openclaw" | "eval";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -202,6 +200,7 @@ function App() {
     <div className="app">
       <header className="header">
         <img src={voiceflipLogo} alt="Voiceflip" className="header-logo" />
+        <h1 className="header-title">US Housing strategies chatbot</h1>
         <p className="subtitle">Chat, Upload Documents, Retrieve</p>
         <nav className="tabs">
           <button
@@ -417,13 +416,8 @@ function App() {
         {activeTab === "openclaw" && (
           <section className="panel openclaw-panel">
             <p className="hint">
-              <strong>Flow:</strong> Ask OpenClaw for US housing research (e.g. &quot;Search for information about first-time home buyer programs in the US&quot;). Check the reply in WebChat, paste it below, generate a PDF or DOCX, download it, then add it to the RAG via the Upload tab.
+              <strong>Flow:</strong> Ask OpenClaw for US housing research (e.g. &quot;Search for information about first-time home buyer programs in the US&quot;). Paste the reply below, generate a PDF or DOCX, download it, then add it to the RAG via the Upload tab.
             </p>
-            <div className="openclaw-link">
-              <a href={OPENCLAW_WEBCHAT_URL} target="_blank" rel="noopener noreferrer">
-                Open OpenClaw WebChat →
-              </a>
-            </div>
             <form onSubmit={handleOpenClawSend} className="form">
               <input
                 type="text"
@@ -439,7 +433,7 @@ function App() {
             </form>
             {openclawSent && (
               <div className="result-box success">
-                Message sent. Check OpenClaw WebChat for the reply, then paste it below to generate a document.
+                Message sent. Check OpenClaw for the reply, then paste it below to generate a document.
               </div>
             )}
 
