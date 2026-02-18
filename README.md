@@ -30,7 +30,7 @@ Summary of key technical decisions per phase, aligned with [TECHNICAL_TEST_CANDI
 - **Chunking**: At least two strategies — overlap (fixed size + overlap) and row-based (`row_table`) for table-friendly documents; strategy per file from the metadata Excel when available.
 - **Loaders**: DOCX, HTML, PDF; text cleaning and normalization; metadata preserved.
 - **Embeddings & LLM**: Open-source models via Hugging Face Inference API (e.g. `sentence-transformers/all-MiniLM-L6-v2`, `Qwen/Qwen2.5-1.5B-Instruct`); storage in Qdrant.
-- **Retrieval**: At least two techniques — top_k and MMR — with structured prompts and edge-case handling.
+- **Retrieval**: At least two techniques — top_k and MMR — with structured prompts and edge-case handling. **Quality filters**: (1) Chunks shorter than `RETRIEVAL_MIN_CHUNK_LENGTH` (default 80 chars) are skipped so cover/header-only chunks do not rank first. (2) Dedupe uses (doc_id, span, chunk_index) so multiple chunks from the same page can appear in the top-k when they are substantive.
 
 ### Phase 3 — LangGraph agent (chatbot goal)
 

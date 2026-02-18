@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 8
     # Qdrant cosine distance: lower = more similar. Keep docs with distance <= this (0.8 = fairly permissive).
     retrieval_similarity_threshold: float = 0.8
+    # Skip chunks shorter than this (chars) to avoid header/cover-only chunks ranking first. 0 = disabled.
+    retrieval_min_chunk_length: int = 80
 
     # Retrieval — MMR
     retrieval_mmr_fetch_k: int = 20
